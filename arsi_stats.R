@@ -91,31 +91,26 @@ ggplot(yield.pp.data, aes(x=y)) +
 
 ## Nutrient models
 
-# Standardize variables
-arsi_full_data$pH.z <- (arsi_full_data$pH - mean(arsi_full_data$pH,na.rm=T))/2*sd(arsi_full_data$pH,na.rm=T)
-arsi_full_data$Silt.z <- (arsi_full_data$Silt - mean(arsi_full_data$Silt,na.rm=T))/2*sd(arsi_full_data$Silt,na.rm=T)
-arsi_full_data$MAOM.N.z <- (arsi_full_data$MAOM.N - mean(arsi_full_data$MAOM.N,na.rm=T))/2*sd(arsi_full_data$MAOM.N,na.rm=T)
-
 # Initial models
-lm.zn <- lm(log(Zn.crop)~ N.appl.amt + pH + MAOM.N + POM.N + Silt,data=arsi_full_data)
+lm.zn <- lm(log(Zn.crop)~ N.appl.amt + pH + MAOM.N + POM.N + Silt + Trd,data=arsi_full_data)
 summary(standardize(lm.zn))
 lm.fe <- lm(log(Fe.crop)~ N.appl.amt + pH + MAOM.N + POM.N + Silt + Trd,data=arsi_full_data)
 summary(standardize(lm.fe))
 
 # Stan models
-nutr.vars <- c("Zn.crop","Fe.crop","N.z","pH.z","Silt.z","MAOM.N.z","POM.N.z","Trd.z")
+nutr.vars <- c("Zn.crop","Fe.crop","N.appl.amt","pH","Silt","MAOM.N","POM.N","Trd")
 nutr.data <- arsi_full_data[complete.cases(arsi_full_data[,nutr.vars]),c(nutr.vars)]
 nutr.data <- as.data.frame(nutr.data)
 
 zn.list <- list(N=nrow(nutr.data),
                 K=6,
-                x=nutr.data[,c(3:8)],
+                x=nutr.data[,c('N.appl.amt','pH','Silt','MAOM.N','POM.N','Trd')],
                 y=nutr.data$Zn.crop
 )
 
 zn.model <- stan(file = "~/Box Sync/Work/GitHub/arsi_gradient/Stan/crop_nutrients.stan", data = zn.list, control = list(adapt_delta=0.99,max_treedepth=17), chains=4)
-print(zn.model, probs=c(.025,.975), pars=c('alpha','beta','sigma'))
-plot(zn.model, pars=c('alpha','beta','sigma'))
+print(zn.model, probs=c(.025,.975), pars=c('beta'))
+plot(zn.model, pars=c("alpha_std","beta_std","sigma_std"))
 #traceplot(zn.model, inc_warmup = F, pars=c('alpha','beta','sigma'))
 
 # Posterior predictive check
@@ -139,14 +134,14 @@ ggplot(zn.pp.data, aes(x=y)) +
 
 fe.list <- list(N=nrow(nutr.data),
                 K=6,
-                x=nutr.data[,c(3:8)],
+                x=nutr.data[,c('N.appl.amt','pH','Silt','MAOM.N','POM.N','Trd')],
                 y=nutr.data$Fe.crop
 )
 
 fe.model <- stan(file = "~/Box Sync/Work/Writing/Manuscripts/Unsubmitted/arsi_negele/Stan/crop_nutrients.stan", data = fe.list, control = list(adapt_delta=0.999,max_treedepth=20), chains=4)
 
-print(fe.model, probs=c(.025,.975), pars=c("alpha","beta","sigma"))
-plot(fe.model, pars=c("alpha","beta","sigma"))
+print(fe.model, probs=c(.025,.975), pars=c("beta"))
+plot(fe.model, pars=c("alpha_std","beta_std","sigma_std"))
 
 # Posterior predictive check
 y_pred <- rstan::extract(fe.model,pars='y_tilde')

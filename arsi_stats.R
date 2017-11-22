@@ -7,6 +7,7 @@ library(tidyverse)  # For reading in data
 library(arm)        # For standardize() function
 library(rstan)      # For interfacing with Stan
 
+
 ## Read in data and generate new variables
 arsi_full_data <- read_csv("~/Box Sync/Work/Writing/Manuscripts/Unsubmitted/arsi_negele/arsi_full_data.csv")
 names(arsi_full_data)[4:24] <- c('Protein','Fe.crop','Zn.crop','Area','FoodYield','WheatYield','N.appl.amt','N.appl.p.ha','SIR','POM.C','MAOM.C','POM.N','MAOM.N','Sand','Silt','Clay','pH','Cu','Fe','Mn','Zn')
@@ -14,6 +15,8 @@ names(arsi_full_data)[4:24] <- c('Protein','Fe.crop','Zn.crop','Area','FoodYield
 arsi_full_data$Protein <- arsi_full_data$Protein/100
 arsi_full_data$MAOM.C.N <- arsi_full_data$MAOM.C/arsi_full_data$MAOM.N
 arsi_full_data$POM.C.N <- arsi_full_data$POM.C/arsi_full_data$POM.N
+arsi_full_data$Fines <- arsi_full_data$Silt + arsi_full_data$Clay
+arsi_full_data$Total.N <- arsi_full_data$POM.N + arsi_full_data$MAOM.N
 
 
 ## Assess correlations
@@ -38,18 +41,18 @@ pairs(arsi_full_data[,corr.vars], lower.panel = panel.smooth, upper.panel = pane
 ## Yield model
 lm.yield <- lm(log(WheatYield)~MAOM.C+POM.N+N.appl.amt+Trd,data=arsi_full_data)
 summary(standardize(lm.yield))
-# car::qqPlot(lm(log(WheatYield)~MAOM.C+POM.N+Trd))
-# car::ncvTest(lm(log(WheatYield)~MAOM.C+POM.N+Trd))
-# car::residualPlots(lm(log(WheatYield)~MAOM.C+POM.N+Trd))
-# car::crPlots(lm(log(WheatYield)~MAOM.C+POM.N+Trd))
-# car::avPlots(lm(log(WheatYield)~MAOM.C+POM.N+Trd))
+# car::qqPlot(lm(log(WheatYield)~MAOM.C+POM.N+Trd+N.appl.amt,data=arsi_full_data))
+# car::ncvTest(lm(log(WheatYield)~MAOM.C+POM.N+Trd+N.appl.amt,data=arsi_full_data))
+# car::residualPlots(lm(log(WheatYield)~MAOM.C+POM.N+Trd+N.appl.amt,data=arsi_full_data))
+# car::crPlots(lm(log(WheatYield)~MAOM.C+POM.N+Trd+N.appl.amt,data=arsi_full_data))
+# car::avPlots(lm(log(WheatYield)~MAOM.C+POM.N+Trd+N.appl.amt,data=arsi_full_data))
 
 # Drop NA values
 yield.vars <- c("WheatYield","N.appl.amt","MAOM.C","POM.N","Trd")
 yield.data <- arsi_full_data[complete.cases(arsi_full_data[,yield.vars]),c(yield.vars)]
 yield.data <- as.data.frame(yield.data)
 
-# Fit model
+# Fit Stan model
 yield.list <- list(N=nrow(yield.data),
                     K=4,
                     fert=yield.data$N.appl.amt,
@@ -60,14 +63,11 @@ yield.list <- list(N=nrow(yield.data),
                   )
 yield.model <- stan(file = "~/Box Sync/Work/GitHub/arsi_gradient/Stan/yield.stan", data = yield.list, control = list(adapt_delta=0.99,max_treedepth=15), chains = 4)
 
-
-# Look at results
+# Results
 print(yield.model, probs=c(.025,.975),
-      pars=c('alpha_std','beta_std','sigma_std')) # Std coefficients
-print(yield.model, probs=c(.025,.975),
-      pars=c('beta_fert','beta_maom','beta_pom','beta_trd','sigma')) # Natural coefficients
-plot(yield.model,pars=c('beta_std','sigma_std','alpha_std'))
-traceplot(yield.model, inc_warmup = F,pars=c('beta','sigma','alpha'))
+      pars=c('beta_fert','beta_maom','beta_pom','beta_trd')) # Natural coefficients
+plot(yield.model,pars=c('beta_std','sigma_std'),outer_level=0.975)
+#traceplot(yield.model, inc_warmup = F,pars=c('beta','sigma','alpha'))
 
 # Posterior predictive check
 y_pred <- rstan::extract(yield.model,pars='y_tilde')
@@ -90,7 +90,6 @@ ggplot(yield.pp.data, aes(x=y)) +
 
 
 ## Nutrient models
-
 # Initial models
 lm.zn <- lm(log(Zn.crop)~ N.appl.amt + pH + MAOM.N + POM.N + Silt + Trd,data=arsi_full_data)
 summary(standardize(lm.zn))
@@ -110,7 +109,7 @@ zn.list <- list(N=nrow(nutr.data),
 
 zn.model <- stan(file = "~/Box Sync/Work/GitHub/arsi_gradient/Stan/crop_nutrients.stan", data = zn.list, control = list(adapt_delta=0.99,max_treedepth=17), chains=4)
 print(zn.model, probs=c(.025,.975), pars=c('beta'))
-plot(zn.model, pars=c("alpha_std","beta_std","sigma_std"))
+plot(zn.model, pars=c("beta_std","sigma_std"),outer_level=0.975)
 #traceplot(zn.model, inc_warmup = F, pars=c('alpha','beta','sigma'))
 
 # Posterior predictive check
@@ -138,10 +137,10 @@ fe.list <- list(N=nrow(nutr.data),
                 y=nutr.data$Fe.crop
 )
 
-fe.model <- stan(file = "~/Box Sync/Work/Writing/Manuscripts/Unsubmitted/arsi_negele/Stan/crop_nutrients.stan", data = fe.list, control = list(adapt_delta=0.999,max_treedepth=20), chains=4)
+fe.model <- stan(file = "~/Box Sync/Work/GitHub/arsi_gradient/Stan/crop_nutrients.stan", data = fe.list, control = list(adapt_delta=0.999,max_treedepth=20), chains=4)
 
 print(fe.model, probs=c(.025,.975), pars=c("beta"))
-plot(fe.model, pars=c("alpha_std","beta_std","sigma_std"))
+plot(fe.model, pars=c("beta_std","sigma_std"),outer_level=0.975)
 
 # Posterior predictive check
 y_pred <- rstan::extract(fe.model,pars='y_tilde')
@@ -165,62 +164,118 @@ ggplot(fe.pp.data, aes(x=y)) +
 
 ## SOM models
 
-# Compare lm and lmm
-lm(log(POM.C)~ MAOM.C,arsi_full_data) %>%
-  standardize() %>%
-    summary()
-lme4::lmer(log(POM.C)~ MAOM.C + (1|Location),arsi_full_data) %>%
-  standardize() %>%  
-    summary()
-
 # Set up data for Stan
-# Remove NAs
-som.data <- as.data.frame(arsi_full_data[complete.cases(arsi_full_data[,c(2,3,12:14,17,21:24,28,38)]),c(2,3,12:14,17,21:24,28,38)])
+# Define dummies
+arsi_full_data <- cbind(arsi_full_data, dummies::dummy(arsi_full_data$Type)) %>%
+  as.tibble()
+names(arsi_full_data)[39:41] <- c('typeForest','typeHome','typeWheat')
 
-# Create numeric clustering variable
-uniq <- unique(som.data$Location)
-J <- length(uniq) 
-loc <- rep(NA,J)
-
-for (i in 1:J) {
-  loc[som.data$Location == uniq[i]] <- i
-}
-
-# Define data
-dataList <- list(
-  N = length(som.data$POM.C),
-  y = som.data$POM.C,
-  x = som.data$MAOM.C,
-  re = loc,
-  J = max(loc)
-)
-
-# Execute model
-POM <- stan(file = "~/Box Sync/Work/Writing/Manuscripts/Unsubmitted/arsi_negele/Stan/som_RE.stan",
-     data = dataList,
-     iter = 2000, chains = 2)
-
-# Print model
-print(POM)
-plot(POM)
-traceplot(POM,inc_warmup=F)
-
-
-
-
-
-
-lm(log(POM.C)~ Type + Dmun + Zn + Cu + Mn + MAOM.C,arsi_full_data) %>%
-  standardize() %>%
+# Compare models with different hierarchies
+lm(log(POM.C) ~ rescale(typeHome) + rescale(typeWheat) + rescale(Dmun) + rescale(Fines) + rescale(pH),arsi_full_data) %>%
+  summary()
+lme4::lmer(log(POM.C) ~ rescale(Dmun) + rescale(Fines) + rescale(pH) + (1|Type),arsi_full_data) %>%
+  summary()
+lme4::lmer(log(POM.C) ~ rescale(Dmun) + rescale(Fines) + rescale(pH) + (1 + rescale(Dmun)|Type),arsi_full_data) %>%
   summary()
 
-lm.MAOM <- lm(log(MAOM.C)~ Type + Dmun + POM.C + Zn + Cu + Mn ,arsi_full_data )
-lm.SIR <- lm(log(SIR)~ Type + Dmun + MAOM.C + POM.C + Sand + pH + Cu + Mn + Zn,arsi_full_data )
+# Remove NAs
+som.vars <- c('Location','POM.C','MAOM.C','SIR','typeHome','typeWheat','Dmun','Fines','pH')
+som.data <- arsi_full_data[complete.cases(arsi_full_data[,som.vars]),c(som.vars)]
 
-summary(standardize(lm.MAOM))
-summary(standardize(lm.SIR))
+# Define data
+pomList <- list(
+  N = nrow(som.data),
+  K = ncol(som.data[,c('typeHome','typeWheat','Dmun','Fines','pH')]),
+  y = som.data$POM.C,
+  x = som.data[,c('typeHome','typeWheat','Dmun','Fines','pH')]
+)
+maomList <- list(
+  N = nrow(som.data),
+  K = ncol(som.data[,c('typeHome','typeWheat','POM.C','Dmun','Fines','pH')]),
+  y = som.data$MAOM.C,
+  x = som.data[,c('typeHome','typeWheat','POM.C','Dmun','Fines','pH')]
+)
+sirList <- list(
+  N = nrow(som.data),
+  K = ncol(som.data[,c('typeHome','typeWheat','POM.C','MAOM.C','Dmun','Fines','pH')]),
+  y = som.data$SIR,
+  x = som.data[,c('typeHome','typeWheat','POM.C','MAOM.C','Dmun','Fines','pH')]
+)
 
-stargazer::stargazer(lm.POM, lm.MAOM, lm.SIR, title="Organic matter model results", align=TRUE, omit.stat=c("LL","ser","f"), type="html")
+# Execute models
+POM <- stan(file = "~/Box Sync/Work/GitHub/arsi_gradient/Stan/som.stan",
+     data = pomList,
+     iter = 2000, chains = 4)
+MAOM <- stan(file = "~/Box Sync/Work/GitHub/arsi_gradient/Stan/som.stan",
+            data = maomList,
+            iter = 2000, chains = 4)
+SIR <- stan(file = "~/Box Sync/Work/GitHub/arsi_gradient/Stan/som.stan",
+            data = sirList,
+            iter = 2000, chains = 4)
 
-POM <- stan_lm(log(POM.C)~ Type + Dmun + Cu + Mn + Zn + MAOM.C, prior=R2(location=0.5),data = arsi_full_data)
-pp_check(POM)
+# Print model
+print(POM,pars=c('beta'))
+plot(POM,pars=c('beta_std'),outer_level=0.975)
+print(MAOM,pars=c('beta'))
+plot(MAOM,pars=c('beta_std'),outer_level=0.975)
+print(SIR,pars=c('beta'))
+plot(SIR,pars=c('beta_std'),outer_level=0.975)
+
+
+# Posterior predictive checks
+# POM
+y_pred_pom <- rstan::extract(POM,pars='y_tilde')
+y_pred_pom <- unlist(y_pred_pom, use.names=FALSE)
+
+pom.pp.data <- data.frame(c(y_pred_pom,pomList$y),c(rep("y_pred",length(y_pred_pom)),rep("y_obs",length(pomList$y))))
+names(pom.pp.data) <- c("y","type")
+
+ggplot(pom.pp.data, aes(x=y)) + 
+  geom_density(aes(group=type, fill=type), alpha=0.75) + theme_bw() +
+  xlab("POM") + ylab("Density") +
+  scale_fill_manual(values=wesanderson::wes_palette("Royal1",n=2)) +
+  theme(
+    legend.title = element_blank(),
+    legend.position = c(0.85,0.55),
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill="white"),
+    plot.background = element_rect(fill="white")
+  )
+
+# MAOM
+y_pred_maom <- rstan::extract(MAOM,pars='y_tilde')
+y_pred_maom <- unlist(y_pred_maom, use.names=FALSE)
+
+maom.pp.data <- data.frame(c(y_pred_maom,maomList$y),c(rep("y_pred",length(y_pred_maom)),rep("y_obs",length(maomList$y))))
+names(maom.pp.data) <- c("y","type")
+
+ggplot(maom.pp.data, aes(x=y)) + 
+  geom_density(aes(group=type, fill=type), alpha=0.75) + theme_bw() +
+  xlab("MAOM") + ylab("Density") +
+  scale_fill_manual(values=wesanderson::wes_palette("Royal1",n=2)) +
+  theme(
+    legend.title = element_blank(),
+    legend.position = c(0.85,0.55),
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill="white"),
+    plot.background = element_rect(fill="white")
+  )
+
+# SIR
+y_pred_sir <- rstan::extract(SIR,pars='y_tilde')
+y_pred_sir <- unlist(y_pred_sir, use.names=FALSE)
+
+sir.pp.data <- data.frame(c(y_pred_sir,sirList$y),c(rep("y_pred",length(y_pred_sir)),rep("y_obs",length(sirList$y))))
+names(sir.pp.data) <- c("y","type")
+
+ggplot(sir.pp.data, aes(x=y)) + 
+  geom_density(aes(group=type, fill=type), alpha=0.75) + theme_bw() +
+  xlab("Substrate-induced Respiration") + ylab("Density") +
+  scale_fill_manual(values=wesanderson::wes_palette("Royal1",n=2)) +
+  theme(
+    legend.title = element_blank(),
+    legend.position = c(0.85,0.55),
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill="white"),
+    plot.background = element_rect(fill="white")
+  )

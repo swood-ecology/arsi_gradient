@@ -45,13 +45,13 @@ pairs(arsi_full_data[,corr.vars], lower.panel = panel.smooth, upper.panel = pane
 
 # 1. Do yield and nutrients increase or decrease with distance to road?
 # # 1.1. Generate vector of non-text location values
-loc.name <- as.vector(yield.data$Location)
-uniq <- unique(loc.name)
-J <- length(uniq)
-loc <- rep (NA,J)
-for (i in 1:J){
-  loc[loc.name==uniq[i]] <- i
-}
+# loc.name <- as.vector(yield.data$Location)
+# uniq <- unique(loc.name)
+# J <- length(uniq)
+# loc <- rep (NA,J)
+# for (i in 1:J){
+#   loc[loc.name==uniq[i]] <- i
+# }
 
 # 1.2. Define data
 yield.vars <- c("WheatYield","Fe.crop","Zn.crop","Trd","Location","N.appl.amt","pH","POM.N","MAOM.C","MAOM.N")
@@ -85,13 +85,13 @@ fe.list <- list(N=nrow(yield.data),
                 y=yield.data$Fe.crop)
 
 # 1.3. Call Stan models
-yield.model <- stan(file = "~/Box Sync/Work/GitHub/arsi_gradient/Stan/yield_and_nutrient.stan", 
+yield.model <- stan(file = "~/Box Sync/Work/GitHub/arsi_gradient/Stan/final_models/yield_and_nutrient.stan", 
                     data = yield.list, 
                     control = list(adapt_delta=0.99,max_treedepth=15), chains = 4)
-zn.model <- stan(file = "~/Box Sync/Work/GitHub/arsi_gradient/Stan/yield_and_nutrients.stan", 
+zn.model <- stan(file = "~/Box Sync/Work/GitHub/arsi_gradient/Stan/final_models/yield_and_nutrients.stan", 
                  data = zn.list, 
                  control = list(adapt_delta=0.99,max_treedepth=15), chains = 4)
-fe.model <- stan(file = "~/Box Sync/Work/GitHub/arsi_gradient/Stan/yield_and_nutrients.stan", 
+fe.model <- stan(file = "~/Box Sync/Work/GitHub/arsi_gradient/Stan/final_models/yield_and_nutrients.stan", 
                  data = fe.list, 
                  control = list(adapt_delta=0.99,max_treedepth=15), chains = 4)
 
@@ -163,10 +163,6 @@ ggplot(fe.pp.data, aes(x=y)) +
 som.vars <- c('Location','POM.C','MAOM.C','SIR','typeHome','typeWheat','Dmun','Fines','pH')
 som.data <- arsi_full_data[complete.cases(arsi_full_data[,som.vars]),c(som.vars)]
 
-summary(lm(POM.C~typeHome+typeWheat+Dmun+Fines+pH,data=som.data))
-summary(lm(MAOM.C~POM.C+typeHome+typeWheat+Dmun+Fines+pH,data=som.data))
-summary(lm(SIR~POM.C+MAOM.C+typeHome+typeWheat+Dmun+Fines+pH,data=som.data))
-
 pomList <- list(
   N = nrow(som.data),
   K = ncol(som.data[,c('typeHome','typeWheat','Dmun','Fines','pH')]),
@@ -187,13 +183,13 @@ sirList <- list(
 )
 
 # 2.2. Execute models
-POM <- stan(file = "~/Box Sync/Work/GitHub/arsi_gradient/Stan/som.stan",
+POM <- stan(file = "~/Box Sync/Work/GitHub/arsi_gradient/Stan/final_models/som.stan",
             data = pomList,
             iter = 2000, chains = 4)
-MAOM <- stan(file = "~/Box Sync/Work/GitHub/arsi_gradient/Stan/som.stan",
+MAOM <- stan(file = "~/Box Sync/Work/GitHub/arsi_gradient/Stan/final_models/som.stan",
              data = maomList,
              iter = 2000, chains = 4)
-SIR <- stan(file = "~/Box Sync/Work/GitHub/arsi_gradient/Stan/som.stan",
+SIR <- stan(file = "~/Box Sync/Work/GitHub/arsi_gradient/Stan/final_models/som.stan",
             data = sirList,
             iter = 2000, chains = 4)
 
@@ -263,3 +259,27 @@ ggplot(sir.pp.data, aes(x=y)) +
     panel.background = element_rect(fill="white"),
     plot.background = element_rect(fill="white")
   )
+
+# OM models without other pools
+maomList <- list(
+  N = nrow(som.data),
+  K = ncol(som.data[,c('typeHome','typeWheat','Dmun','Fines','pH')]),
+  y = som.data$MAOM.C,
+  x = som.data[,c('typeHome','typeWheat','Dmun','Fines','pH')]
+)
+sirList <- list(
+  N = nrow(som.data),
+  K = ncol(som.data[,c('typeHome','typeWheat','Dmun','Fines','pH')]),
+  y = som.data$SIR,
+  x = som.data[,c('typeHome','typeWheat','Dmun','Fines','pH')]
+)
+
+MAOM <- stan(file = "~/Box Sync/Work/GitHub/arsi_gradient/Stan/final_models/som.stan",
+             data = maomList,
+             iter = 2000, chains = 4)
+SIR <- stan(file = "~/Box Sync/Work/GitHub/arsi_gradient/Stan/final_models/som.stan",
+            data = sirList,
+            iter = 2000, chains = 4)
+
+print(MAOM,pars=c('beta'),probs=c(0.05,0.95))
+print(SIR,pars=c('beta'),probs=c(0.05,0.95))

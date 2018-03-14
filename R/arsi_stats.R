@@ -1,29 +1,18 @@
-## --------------------
-#### Arsi analysis
-## --------------------
+#####################################################################################
+# Title:        Arsi soil and crop analysis                                         #
+# Description:  Crop and soil data along a distance-to-forest gradient in Ethiopia  #
+# Author:       Stephen Wood                                                        #
+# Last updated: 3/14/18                                                             #
+#####################################################################################
 
 ## Load packages
-library(tidyverse)  # For reading in data
-library(arm)        # For standardize() function
-library(rstan)      # For interfacing with Stan
-
-
-## Relevant functions
-# Determine correlations to plot on upper panels
-panel.cor <- function(x, y, digits = 2, cex.cor, ...)
-{
-  usr <- par("usr"); on.exit(par(usr))
-  par(usr = c(0, 1, 0, 1))
-  r <- abs(cor(x, y,use = "complete.obs"))
-  txt <- format(c(r, 0.123456789), digits = digits)[1]
-  if(missing(cex.cor)) cex.cor <- 1/(strwidth(txt))
-  cex.final = cex.cor * r
-  if(cex.final < .5) cex.final <- .6
-  text(0.5, 0.5, txt, cex = cex.final)
-}
+library(tidyverse)      # For reading in data
+library(arm)            # For standardize() function
+library(rstan)          # For interfacing with Stan
+source("R/panel_cor.R") # For plotting pairs plots with correlations
 
 ## Read in data and generate new variables
-arsi_full_data <- read_csv("~/Box Sync/Work/Writing/Manuscripts/Unsubmitted/arsi_negele/arsi_full_data.csv")
+arsi_full_data <- read_csv("data/arsi_full_data.csv")
 names(arsi_full_data)[4:24] <- c('Protein','Fe.crop','Zn.crop','Area','FoodYield','WheatYield','N.appl.amt','N.appl.p.ha','SIR','POM.C','MAOM.C','POM.N','MAOM.N','Sand','Silt','Clay','pH','Cu','Fe','Mn','Zn')
 
 arsi_full_data$Protein <- arsi_full_data$Protein/100
@@ -40,7 +29,7 @@ names(arsi_full_data)[39:41] <- c('typeForest','typeHome','typeWheat')
 corr.vars <- c("WheatYield","N.appl.amt","POM.C","MAOM.C","POM.N","MAOM.N","Sand",
                "Silt","Clay","Cu","Fe","Mn","Zn","Dmun","Trd",
                "MAOM.C.N","POM.C.N","pH")
-pairs(arsi_full_data[,corr.vars], lower.panel = panel.smooth, upper.panel = panel.cor)
+pairs(arsi_full_data[,corr.vars], lower.panel = panel.smooth, upper.panel = panel_cor)
 
 
 # 1. Do yield and nutrients increase or decrease with distance to road?
@@ -85,13 +74,13 @@ fe.list <- list(N=nrow(yield.data),
                 y=yield.data$Fe.crop)
 
 # 1.3. Call Stan models
-yield.model <- stan(file = "~/Box Sync/Work/GitHub/arsi_gradient/Stan/final_models/yield_and_nutrient.stan", 
+yield.model <- stan(file = "Stan/final_models/yield_and_nutrient.stan", 
                     data = yield.list, 
                     control = list(adapt_delta=0.99,max_treedepth=15), chains = 4)
-zn.model <- stan(file = "~/Box Sync/Work/GitHub/arsi_gradient/Stan/final_models/yield_and_nutrients.stan", 
+zn.model <- stan(file = "Stan/final_models/yield_and_nutrients.stan", 
                  data = zn.list, 
                  control = list(adapt_delta=0.99,max_treedepth=15), chains = 4)
-fe.model <- stan(file = "~/Box Sync/Work/GitHub/arsi_gradient/Stan/final_models/yield_and_nutrients.stan", 
+fe.model <- stan(file = "Stan/final_models/yield_and_nutrients.stan", 
                  data = fe.list, 
                  control = list(adapt_delta=0.99,max_treedepth=15), chains = 4)
 
@@ -109,7 +98,7 @@ print(fe.model,pars=c("beta_fert","beta_maom","beta_pom","beta_pH","beta_trd"),
 plot(fe.model,pars=c("beta_std"))
 
 # 1.5. Posterior predictive checks
-yield_pred <- rstan::extract(yield.model,pars='y_tilde')
+yield_pred <- extract(yield.model,pars='y_tilde')
 yield_pred <- unlist(yield_pred, use.names=FALSE)
 yield.pp.data <- data.frame(c(yield_pred,yield.list$y),c(rep("yield_pred",length(yield_pred)),rep("y_obs",length(yield.list$y))))
 names(yield.pp.data) <- c("y","type")
@@ -125,7 +114,7 @@ ggplot(yield.pp.data, aes(x=y)) +
     plot.background = element_rect(fill="white")
   )
 
-y_pred <- rstan::extract(zn.model,pars='y_tilde')
+y_pred <- extract(zn.model,pars='y_tilde')
 y_pred <- unlist(y_pred, use.names=FALSE)
 zn.pp.data <- data.frame(c(y_pred,zn.list$y),c(rep("y_pred",length(y_pred)),rep("y_obs",length(zn.list$y))))
 names(zn.pp.data) <- c("y","type")
@@ -141,7 +130,7 @@ ggplot(zn.pp.data, aes(x=y)) +
     plot.background = element_rect(fill="white")
   )
 
-y_pred <- rstan::extract(fe.model,pars='y_tilde')
+y_pred <- extract(fe.model,pars='y_tilde')
 y_pred <- unlist(y_pred, use.names=FALSE)
 fe.pp.data <- data.frame(c(y_pred,fe.list$y),c(rep("y_pred",length(y_pred)),rep("y_obs",length(fe.list$y))))
 names(fe.pp.data) <- c("y","type")
@@ -183,13 +172,13 @@ sirList <- list(
 )
 
 # 2.2. Execute models
-POM <- stan(file = "~/Box Sync/Work/GitHub/arsi_gradient/Stan/final_models/som.stan",
+POM <- stan(file = "Stan/final_models/som.stan",
             data = pomList,
             iter = 2000, chains = 4)
-MAOM <- stan(file = "~/Box Sync/Work/GitHub/arsi_gradient/Stan/final_models/som.stan",
+MAOM <- stan(file = "Stan/final_models/som.stan",
              data = maomList,
              iter = 2000, chains = 4)
-SIR <- stan(file = "~/Box Sync/Work/GitHub/arsi_gradient/Stan/final_models/som.stan",
+SIR <- stan(file = "Stan/final_models/som.stan",
             data = sirList,
             iter = 2000, chains = 4)
 
@@ -204,7 +193,7 @@ plot(SIR,pars=c('beta_std'))
 
 # Posterior predictive checks
 # POM
-y_pred_pom <- rstan::extract(POM,pars='y_tilde')
+y_pred_pom <- extract(POM,pars='y_tilde')
 y_pred_pom <- unlist(y_pred_pom, use.names=FALSE)
 
 pom.pp.data <- data.frame(c(y_pred_pom,pomList$y),c(rep("y_pred",length(y_pred_pom)),rep("y_obs",length(pomList$y))))
@@ -223,7 +212,7 @@ ggplot(pom.pp.data, aes(x=y)) +
   )
 
 # MAOM
-y_pred_maom <- rstan::extract(MAOM,pars='y_tilde')
+y_pred_maom <- extract(MAOM,pars='y_tilde')
 y_pred_maom <- unlist(y_pred_maom, use.names=FALSE)
 
 maom.pp.data <- data.frame(c(y_pred_maom,maomList$y),c(rep("y_pred",length(y_pred_maom)),rep("y_obs",length(maomList$y))))
@@ -242,7 +231,7 @@ ggplot(maom.pp.data, aes(x=y)) +
   )
 
 # SIR
-y_pred_sir <- rstan::extract(SIR,pars='y_tilde')
+y_pred_sir <- extract(SIR,pars='y_tilde')
 y_pred_sir <- unlist(y_pred_sir, use.names=FALSE)
 
 sir.pp.data <- data.frame(c(y_pred_sir,sirList$y),c(rep("y_pred",length(y_pred_sir)),rep("y_obs",length(sirList$y))))
@@ -274,10 +263,10 @@ sirList <- list(
   x = som.data[,c('typeHome','typeWheat','Dmun','Fines','pH')]
 )
 
-MAOM <- stan(file = "~/Box Sync/Work/GitHub/arsi_gradient/Stan/final_models/som.stan",
+MAOM <- stan(file = "Stan/final_models/som.stan",
              data = maomList,
              iter = 2000, chains = 4)
-SIR <- stan(file = "~/Box Sync/Work/GitHub/arsi_gradient/Stan/final_models/som.stan",
+SIR <- stan(file = "Stan/final_models/som.stan",
             data = sirList,
             iter = 2000, chains = 4)
 

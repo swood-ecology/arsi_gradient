@@ -5,56 +5,68 @@
 # Last updated: 3/14/18                                                             #
 #####################################################################################
 
-## Load packages
+# LOAD PACKAGES
 library(tidyverse)      # For reading in data
 library(arm)            # For standardize() function
 library(rstan)          # For interfacing with Stan
 source("R/panel_cor.R") # For plotting pairs plots with correlations
 
-## Read in data and generate new variables
-arsi_full_data <- read_csv("data/arsi_full_data.csv")
-names(arsi_full_data)[4:24] <- c('Protein','Fe.crop','Zn.crop','Area','FoodYield','WheatYield','N.appl.amt','N.appl.p.ha','SIR','POM.C','MAOM.C','POM.N','MAOM.N','Sand','Silt','Clay','pH','Cu','Fe','Mn','Zn')
+# READ DATA
+arsi <- read_csv("data/arsi_full_data.csv")
+names(arsi)[4:24] <- c('Protein','Fe.crop','Zn.crop','Area','FoodYield','WheatYield','N.appl.amt','N.appl.p.ha','SIR','POM.C','MAOM.C','POM.N','MAOM.N','Sand','Silt','Clay','pH','Cu','Fe','Mn','Zn')
 
-arsi_full_data$Protein <- arsi_full_data$Protein/100
-arsi_full_data$MAOM.C.N <- arsi_full_data$MAOM.C/arsi_full_data$MAOM.N
-arsi_full_data$POM.C.N <- arsi_full_data$POM.C/arsi_full_data$POM.N
-arsi_full_data$Fines <- arsi_full_data$Silt + arsi_full_data$Clay
-# Define dummies
-arsi_full_data <- cbind(arsi_full_data, dummies::dummy(arsi_full_data$Type)) %>%
-  as.tibble()
-names(arsi_full_data)[39:41] <- c('typeForest','typeHome','typeWheat')
+# GENERATE NEW VARIABLES
+arsi$Protein <- arsi$Protein/100
+arsi$MAOM.C.N <- arsi$MAOM.C/arsi$MAOM.N
+arsi$POM.C.N <- arsi$POM.C/arsi$POM.N
+arsi$Fines <- arsi$Silt + arsi$Clay
 
+## Define dummies
+arsi <- cbind(arsi, dummies::dummy(arsi$Type), dummies::dummy(arsi$Location)) %>% 
+            as.tibble()
+names(arsi)[39:45] <- c('typeForest','typeHome','typeWheat','locationForest',
+                        'locationMiddle','locationNearForest','locationRoad')
 
-## Assess correlations
+# ASSESS CORRELATIONS
 corr.vars <- c("WheatYield","N.appl.amt","POM.C","MAOM.C","POM.N","MAOM.N","Sand",
                "Silt","Clay","Cu","Fe","Mn","Zn","Dmun","Trd",
                "MAOM.C.N","POM.C.N","pH")
-pairs(arsi_full_data[,corr.vars], lower.panel = panel.smooth, upper.panel = panel_cor)
+pairs(arsi[,corr.vars], lower.panel = panel.smooth, upper.panel = panel_cor)
 
 
-# 1. Do yield and nutrients increase or decrease with distance to road?
-# # 1.1. Generate vector of non-text location values
-# loc.name <- as.vector(yield.data$Location)
-# uniq <- unique(loc.name)
-# J <- length(uniq)
-# loc <- rep (NA,J)
-# for (i in 1:J){
-#   loc[loc.name==uniq[i]] <- i
-# }
+# QUESTION 1
+# Do yield and nutrients increase or decrease with distance to road?
 
-# 1.2. Define data
-yield.vars <- c("WheatYield","Fe.crop","Zn.crop","Trd","Location","N.appl.amt","pH","POM.N","MAOM.C","MAOM.N")
-yield.data <- arsi_full_data[complete.cases(arsi_full_data[,yield.vars]),c(yield.vars)]
+## Define data
+yield.vars <- c("WheatYield","Fe.crop","Zn.crop","Protein","N.appl.amt","N.appl.p.ha",
+                "pH","Fe","Zn","POM.N","POM.C","MAOM.C","MAOM.N","MAOM.C.N","POM.C.N",
+                "locationMiddle","locationNearForest","locationRoad","typeWheat",
+                "typeHome")
+yield.data <- arsi[complete.cases(arsi[,yield.vars]),c(yield.vars)]
 yield.data <- as.data.frame(yield.data)
 
-yield.list <- list(N=nrow(yield.data),
-                   K=5,
-                   fert=yield.data$N.appl.amt,
-                   maom=yield.data$MAOM.C,
-                   pom=yield.data$POM.N,
-                   pH=yield.data$pH,
-                   trd=yield.data$Trd,
-                   y=yield.data$WheatYield
+summary(lm(WheatYield~N.appl.p.ha+pH+POM.N+MAOM.N+locationMiddle+locationNearForest,data=yield.data))
+summary(lm(Protein~N.appl.p.ha+pH+POM.C.N+MAOM.C.N+locationMiddle+locationNearForest,data=yield.data))
+summary(lm(Zn.crop~N.appl.p.ha+pH+POM.N+MAOM.C+locationMiddle+locationNearForest,data=yield.data))
+summary(lm(Fe.crop~N.appl.p.ha+pH+POM.N+MAOM.C+locationMiddle+locationNearForest,data=yield.data))
+
+
+## List data for Stan model
+### Use MAOM and POM N because of expectation that aggrgate yield depends on nutrients
+yield.list <- list(
+                    N=nrow(yield.data),
+                    K=6,
+                    fert=yield.data$N.appl.p.ha,
+                    maom=yield.data$MAOM.N,
+                    pom=yield.data$POM.N,
+                    pH=yield.data$pH,
+                    nf=yield.data$locationNearForest,
+                    mid=yield.data$locationMiddle,
+                    y=yield.data$WheatYield
+)
+### Use OM stoichiometry because
+pro.list <- list(
+  
 )
 zn.list <- list(N=nrow(yield.data),
                 K=5,
@@ -73,8 +85,8 @@ fe.list <- list(N=nrow(yield.data),
                 trd=yield.data$Trd,
                 y=yield.data$Fe.crop)
 
-# 1.3. Call Stan models
-yield.model <- stan(file = "Stan/final_models/yield_and_nutrient.stan", 
+## Call Stan models
+yield.model <- stan(file = "Stan/final_models/yield_and_nutrients.stan", 
                     data = yield.list, 
                     control = list(adapt_delta=0.99,max_treedepth=15), chains = 4)
 zn.model <- stan(file = "Stan/final_models/yield_and_nutrients.stan", 
@@ -84,8 +96,8 @@ fe.model <- stan(file = "Stan/final_models/yield_and_nutrients.stan",
                  data = fe.list, 
                  control = list(adapt_delta=0.99,max_treedepth=15), chains = 4)
 
-# 1.4. Model results
-print(yield.model,pars=c("beta_fert","beta_maom","beta_pom","beta_pH","beta_trd"),
+## Model results
+print(yield.model,pars=c("beta_fert","beta_maom","beta_pom","beta_pH","beta_mid","beta_nf"),
       probs=c(0.05,0.95))
 plot(yield.model,pars=c("beta_std"))
 
@@ -150,7 +162,7 @@ ggplot(fe.pp.data, aes(x=y)) +
 # 2. Does SOM vary along the same landscape gradient as yield? In other words, could it be a driver?
 # 2.1. Set up data for Stan
 som.vars <- c('Location','POM.C','MAOM.C','SIR','typeHome','typeWheat','Dmun','Fines','pH')
-som.data <- arsi_full_data[complete.cases(arsi_full_data[,som.vars]),c(som.vars)]
+som.data <- arsi[complete.cases(arsi[,som.vars]),c(som.vars)]
 
 pomList <- list(
   N = nrow(som.data),

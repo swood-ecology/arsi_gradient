@@ -45,14 +45,13 @@ yield.vars <- c("WheatYield","Fe.crop","Zn.crop","Protein","N.appl.amt","N.appl.
 yield.data <- arsi[complete.cases(arsi[,yield.vars]),c(yield.vars)]
 yield.data <- as.data.frame(yield.data)
 
-summary(lm(WheatYield~N.appl.p.ha+pH+POM.N+MAOM.N+locationMiddle+locationNearForest,data=yield.data))
-summary(lm(Protein~N.appl.p.ha+pH+POM.C.N+MAOM.C.N+locationMiddle+locationNearForest,data=yield.data))
 summary(lm(Zn.crop~N.appl.p.ha+pH+POM.N+MAOM.C+locationMiddle+locationNearForest,data=yield.data))
 summary(lm(Fe.crop~N.appl.p.ha+pH+POM.N+MAOM.C+locationMiddle+locationNearForest,data=yield.data))
 
 
 ## List data for Stan model
-### Use MAOM and POM N because of expectation that aggrgate yield depends on nutrients
+### Use MAOM and POM N for yield and protein 
+### because of expectation that aggrgate yield and amino acids depend on N
 yield.list <- list(
                     N=nrow(yield.data),
                     K=6,
@@ -64,55 +63,83 @@ yield.list <- list(
                     mid=yield.data$locationMiddle,
                     y=yield.data$WheatYield
 )
-### Use OM stoichiometry because
 pro.list <- list(
-  
+                    N=nrow(yield.data),
+                    K=6,
+                    fert=yield.data$N.appl.p.ha,
+                    maom=yield.data$MAOM.N,
+                    pom=yield.data$POM.N,
+                    pH=yield.data$pH,
+                    nf=yield.data$locationNearForest,
+                    mid=yield.data$locationMiddle,
+                    y=yield.data$Protein
 )
-zn.list <- list(N=nrow(yield.data),
-                K=5,
-                fert=yield.data$N.appl.amt,
-                maom=yield.data$MAOM.N,
-                pom=yield.data$POM.N,
-                pH=yield.data$pH,
-                trd=yield.data$Trd,
-                y=yield.data$Zn.crop)
-fe.list <- list(N=nrow(yield.data),
-                K=5,
-                fert=yield.data$N.appl.amt,
-                maom=yield.data$MAOM.N,
-                pom=yield.data$POM.N,
-                pH=yield.data$pH,
-                trd=yield.data$Trd,
-                y=yield.data$Fe.crop)
+### Use MAOM C for Zn and Fe models because of expectation 
+### that CEC is important for micronutrients
+zn.list <- list(
+                    N=nrow(yield.data),
+                    K=6,
+                    fert=yield.data$N.appl.amt,
+                    maom=yield.data$MAOM.C,
+                    pom=yield.data$POM.N,
+                    pH=yield.data$pH,
+                    nf=yield.data$locationNearForest,
+                    mid=yield.data$locationMiddle,
+                    y=yield.data$Zn.crop
+)
+fe.list <- list(
+                    N=nrow(yield.data),
+                    K=6,
+                    fert=yield.data$N.appl.amt,
+                    maom=yield.data$MAOM.C,
+                    pom=yield.data$POM.N,
+                    pH=yield.data$pH,
+                    nf=yield.data$locationNearForest,
+                    mid=yield.data$locationMiddle,
+                    y=yield.data$Fe.crop
+)
 
 ## Call Stan models
 yield.model <- stan(file = "Stan/final_models/yield_and_nutrients.stan", 
                     data = yield.list, 
                     control = list(adapt_delta=0.99,max_treedepth=15), chains = 4)
+pro.model <- stan(file = "Stan/final_models/yield_and_nutrients.stan", 
+                    data = pro.list, 
+                    control = list(adapt_delta=0.99,max_treedepth=15), chains = 4)
 zn.model <- stan(file = "Stan/final_models/yield_and_nutrients.stan", 
-                 data = zn.list, 
-                 control = list(adapt_delta=0.99,max_treedepth=15), chains = 4)
+                    data = zn.list, 
+                    control = list(adapt_delta=0.99,max_treedepth=15), chains = 4)
 fe.model <- stan(file = "Stan/final_models/yield_and_nutrients.stan", 
-                 data = fe.list, 
-                 control = list(adapt_delta=0.99,max_treedepth=15), chains = 4)
+                    data = fe.list, 
+                    control = list(adapt_delta=0.99,max_treedepth=15), chains = 4)
 
 ## Model results
 print(yield.model,pars=c("beta_fert","beta_maom","beta_pom","beta_pH","beta_mid","beta_nf"),
       probs=c(0.05,0.95))
 plot(yield.model,pars=c("beta_std"))
 
-print(zn.model,pars=c("beta_fert","beta_maom","beta_pom","beta_pH","beta_trd"),
+print(pro.model,pars=c("beta_fert","beta_maom","beta_pom","beta_pH","beta_mid","beta_nf"),
+      probs=c(0.05,0.95))
+plot(pro.model,pars=c("beta_std"))
+
+print(zn.model,pars=c("beta_fert","beta_maom","beta_pom","beta_pH","beta_mid","beta_nf"),
       probs=c(0.05,0.95))
 plot(zn.model,pars=c("beta_std"))
 
-print(fe.model,pars=c("beta_fert","beta_maom","beta_pom","beta_pH","beta_trd"),
+print(fe.model,pars=c("beta_fert","beta_maom","beta_pom","beta_pH","beta_mid","beta_nf"),
       probs=c(0.05,0.95))
 plot(fe.model,pars=c("beta_std"))
 
-# 1.5. Posterior predictive checks
+
+## Posterior predictive checks
+### Wheat yield
 yield_pred <- extract(yield.model,pars='y_tilde')
 yield_pred <- unlist(yield_pred, use.names=FALSE)
-yield.pp.data <- data.frame(c(yield_pred,yield.list$y),c(rep("yield_pred",length(yield_pred)),rep("y_obs",length(yield.list$y))))
+yield.pp.data <- data.frame(
+                  c(yield_pred,yield.list$y),
+                  c(rep("yield_pred",length(yield_pred)),
+                    rep("y_obs",length(yield.list$y)))
+                  )
 names(yield.pp.data) <- c("y","type")
 ggplot(yield.pp.data, aes(x=y)) + 
   geom_density(aes(group=type, fill=type), alpha=0.75) + theme_bw() +
@@ -126,9 +153,35 @@ ggplot(yield.pp.data, aes(x=y)) +
     plot.background = element_rect(fill="white")
   )
 
+### Protein
+pro_pred <- extract(pro.model,pars='y_tilde')
+pro_pred <- unlist(pro_pred, use.names=FALSE)
+pro.pp.data <- data.frame(
+                c(pro_pred,pro.list$y),
+                c(rep("pro_pred",length(pro_pred)),
+                  rep("y_obs",length(pro.list$y)))
+              )
+names(pro.pp.data) <- c("y","type")
+ggplot(pro.pp.data, aes(x=y)) + 
+  geom_density(aes(group=type, fill=type), alpha=0.75) + theme_bw() +
+  xlab("Grain protein") + ylab("Density") +
+  scale_fill_manual(values=wesanderson::wes_palette("Royal1",n=2)) +
+  theme(
+    legend.title = element_blank(),
+    legend.position = c(0.85,0.55),
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill="white"),
+    plot.background = element_rect(fill="white")
+  )
+
+### Zinc
 y_pred <- extract(zn.model,pars='y_tilde')
 y_pred <- unlist(y_pred, use.names=FALSE)
-zn.pp.data <- data.frame(c(y_pred,zn.list$y),c(rep("y_pred",length(y_pred)),rep("y_obs",length(zn.list$y))))
+zn.pp.data <- data.frame(
+                c(y_pred,zn.list$y),
+                c(rep("y_pred",length(y_pred)),
+                  rep("y_obs",length(zn.list$y)))
+              )
 names(zn.pp.data) <- c("y","type")
 ggplot(zn.pp.data, aes(x=y)) + 
   geom_density(aes(group=type, fill=type), alpha=0.75) + theme_bw() +
@@ -142,9 +195,14 @@ ggplot(zn.pp.data, aes(x=y)) +
     plot.background = element_rect(fill="white")
   )
 
+### Iron
 y_pred <- extract(fe.model,pars='y_tilde')
 y_pred <- unlist(y_pred, use.names=FALSE)
-fe.pp.data <- data.frame(c(y_pred,fe.list$y),c(rep("y_pred",length(y_pred)),rep("y_obs",length(fe.list$y))))
+fe.pp.data <- data.frame(
+                c(y_pred,fe.list$y),
+                c(rep("y_pred",length(y_pred)),
+                  rep("y_obs",length(fe.list$y)))
+              )
 names(fe.pp.data) <- c("y","type")
 ggplot(fe.pp.data, aes(x=y)) + 
   geom_density(aes(group=type, fill=type), alpha=0.75) + theme_bw() +

@@ -9,6 +9,7 @@
 library(tidyverse)      # For reading in data
 library(arm)            # For standardize() function
 library(rstan)          # For interfacing with Stan
+library(wesanderson)    # Color palette for plots
 source("R/panel_cor.R") # For plotting pairs plots with correlations
 
 # READ DATA
@@ -44,10 +45,6 @@ yield.vars <- c("WheatYield","Fe.crop","Zn.crop","Protein","N.appl.amt","N.appl.
                 "typeHome")
 yield.data <- arsi[complete.cases(arsi[,yield.vars]),c(yield.vars)]
 yield.data <- as.data.frame(yield.data)
-
-summary(lm(Zn.crop~N.appl.p.ha+pH+POM.N+MAOM.C+locationMiddle+locationNearForest,data=yield.data))
-summary(lm(Fe.crop~N.appl.p.ha+pH+POM.N+MAOM.C+locationMiddle+locationNearForest,data=yield.data))
-
 
 ## List data for Stan model
 ### Use MAOM and POM N for yield and protein 
@@ -114,22 +111,25 @@ fe.model <- stan(file = "Stan/final_models/yield_and_nutrients.stan",
                     control = list(adapt_delta=0.99,max_treedepth=15), chains = 4)
 
 ## Model results
+### Wheat yield
 print(yield.model,pars=c("beta_fert","beta_maom","beta_pom","beta_pH","beta_mid","beta_nf"),
       probs=c(0.05,0.95))
 plot(yield.model,pars=c("beta_std"))
 
+### Protein
 print(pro.model,pars=c("beta_fert","beta_maom","beta_pom","beta_pH","beta_mid","beta_nf"),
       probs=c(0.05,0.95))
 plot(pro.model,pars=c("beta_std"))
 
+### Zinc
 print(zn.model,pars=c("beta_fert","beta_maom","beta_pom","beta_pH","beta_mid","beta_nf"),
       probs=c(0.05,0.95))
 plot(zn.model,pars=c("beta_std"))
 
+### Iron
 print(fe.model,pars=c("beta_fert","beta_maom","beta_pom","beta_pH","beta_mid","beta_nf"),
       probs=c(0.05,0.95))
 plot(fe.model,pars=c("beta_std"))
-
 
 ## Posterior predictive checks
 ### Wheat yield
@@ -144,7 +144,7 @@ names(yield.pp.data) <- c("y","type")
 ggplot(yield.pp.data, aes(x=y)) + 
   geom_density(aes(group=type, fill=type), alpha=0.75) + theme_bw() +
   xlab("Wheat yield") + ylab("Density") +
-  scale_fill_manual(values=wesanderson::wes_palette("Royal1",n=2)) +
+  scale_fill_manual(values=wes_palette("Royal1",n=2)) +
   theme(
     legend.title = element_blank(),
     legend.position = c(0.85,0.55),
@@ -165,7 +165,7 @@ names(pro.pp.data) <- c("y","type")
 ggplot(pro.pp.data, aes(x=y)) + 
   geom_density(aes(group=type, fill=type), alpha=0.75) + theme_bw() +
   xlab("Grain protein") + ylab("Density") +
-  scale_fill_manual(values=wesanderson::wes_palette("Royal1",n=2)) +
+  scale_fill_manual(values=wes_palette("Royal1",n=2)) +
   theme(
     legend.title = element_blank(),
     legend.position = c(0.85,0.55),
@@ -186,7 +186,7 @@ names(zn.pp.data) <- c("y","type")
 ggplot(zn.pp.data, aes(x=y)) + 
   geom_density(aes(group=type, fill=type), alpha=0.75) + theme_bw() +
   xlab("Crop zinc concentration") + ylab("Density") +
-  scale_fill_manual(values=wesanderson::wes_palette("Royal1",n=2)) +
+  scale_fill_manual(values=wes_palette("Royal1",n=2)) +
   theme(
     legend.title = element_blank(),
     legend.position = c(0.85,0.55),
@@ -207,7 +207,7 @@ names(fe.pp.data) <- c("y","type")
 ggplot(fe.pp.data, aes(x=y)) + 
   geom_density(aes(group=type, fill=type), alpha=0.75) + theme_bw() +
   xlab("Crop iron concentration") + ylab("Density") +
-  scale_fill_manual(values=wesanderson::wes_palette("Royal1",n=2)) +
+  scale_fill_manual(values=wes_palette("Royal1",n=2)) +
   theme(
     legend.title = element_blank(),
     legend.position = c(0.85,0.55),
@@ -217,34 +217,38 @@ ggplot(fe.pp.data, aes(x=y)) +
   )
 
 
-# 2. Does SOM vary along the same landscape gradient as yield? In other words, could it be a driver?
-# 2.1. Set up data for Stan
-som.vars <- c('Location','POM.C','MAOM.C','SIR','typeHome','typeWheat','Dmun','Fines','pH')
+# QUESTION 2
+# Does SOM vary along the same landscape gradient as yield?
+
+## Set up data for Stan
+som.vars <- c('Location','POM.C','MAOM.C','SIR','typeHome','typeWheat','Fines',
+              'locationForest','locationMiddle','locationNearForest','locationRoad','pH')
 som.data <- arsi[complete.cases(arsi[,som.vars]),c(som.vars)]
 
+## Convert data to list
 pomList <- list(
-  N = nrow(som.data),
-  K = ncol(som.data[,c('typeHome','typeWheat','Dmun','Fines','pH')]),
-  y = som.data$POM.C,
-  x = som.data[,c('typeHome','typeWheat','Dmun','Fines','pH')]
-)
+                N = nrow(som.data),
+                K = ncol(som.data[,c('typeHome','locationMiddle','locationNearForest','locationForest','pH')]),
+                y = som.data$POM.C,
+                x = som.data[,c('typeHome','locationMiddle','locationNearForest','locationForest','pH')]
+            )
 maomList <- list(
-  N = nrow(som.data),
-  K = ncol(som.data[,c('typeHome','typeWheat','POM.C','Dmun','Fines','pH')]),
-  y = som.data$MAOM.C,
-  x = som.data[,c('typeHome','typeWheat','POM.C','Dmun','Fines','pH')]
-)
+                N = nrow(som.data),
+                K = ncol(som.data[,c('typeHome','locationMiddle','locationNearForest','locationForest','pH')]),
+                y = som.data$POM.C,
+                x = som.data[,c('typeHome','locationMiddle','locationNearForest','locationForest','pH')]
+            )
 sirList <- list(
-  N = nrow(som.data),
-  K = ncol(som.data[,c('typeHome','typeWheat','POM.C','MAOM.C','Dmun','Fines','pH')]),
-  y = som.data$SIR,
-  x = som.data[,c('typeHome','typeWheat','POM.C','MAOM.C','Dmun','Fines','pH')]
-)
+                N = nrow(som.data),
+                K = ncol(som.data[,c('typeHome','locationMiddle','locationNearForest','locationForest','pH')]),
+                y = som.data$POM.C,
+                x = som.data[,c('typeHome','locationMiddle','locationNearForest','locationForest','pH')]
+            )
 
-# 2.2. Execute models
+## Execute models
 POM <- stan(file = "Stan/final_models/som.stan",
-            data = pomList,
-            iter = 2000, chains = 4)
+                 data = pomList,
+                 iter = 2000, chains = 4)
 MAOM <- stan(file = "Stan/final_models/som.stan",
              data = maomList,
              iter = 2000, chains = 4)
@@ -252,27 +256,32 @@ SIR <- stan(file = "Stan/final_models/som.stan",
             data = sirList,
             iter = 2000, chains = 4)
 
-# 2.3. Print model results
+## Print model results
 print(POM,pars=c('beta'),probs=c(0.05,0.95))
 plot(POM,pars=c('beta_std'))
+
 print(MAOM,pars=c('beta'),probs=c(0.05,0.95))
 plot(MAOM,pars=c('beta_std'))
+
 print(SIR,pars=c('beta'),probs=c(0.05,0.95))
 plot(SIR,pars=c('beta_std'))
 
-
-# Posterior predictive checks
-# POM
+## Posterior predictive checks
+### POM
 y_pred_pom <- extract(POM,pars='y_tilde')
 y_pred_pom <- unlist(y_pred_pom, use.names=FALSE)
 
-pom.pp.data <- data.frame(c(y_pred_pom,pomList$y),c(rep("y_pred",length(y_pred_pom)),rep("y_obs",length(pomList$y))))
+pom.pp.data <- data.frame(
+                          c(y_pred_pom,pomList$y),
+                          c(rep("y_pred",length(y_pred_pom)),
+                            rep("y_obs",length(pomList$y)))
+                          )
 names(pom.pp.data) <- c("y","type")
 
 ggplot(pom.pp.data, aes(x=y)) + 
   geom_density(aes(group=type, fill=type), alpha=0.75) + theme_bw() +
   xlab("POM") + ylab("Density") +
-  scale_fill_manual(values=wesanderson::wes_palette("Royal1",n=2)) +
+  scale_fill_manual(values=wes_palette("Royal1",n=2)) +
   theme(
     legend.title = element_blank(),
     legend.position = c(0.85,0.55),
@@ -281,17 +290,21 @@ ggplot(pom.pp.data, aes(x=y)) +
     plot.background = element_rect(fill="white")
   )
 
-# MAOM
+### MAOM
 y_pred_maom <- extract(MAOM,pars='y_tilde')
 y_pred_maom <- unlist(y_pred_maom, use.names=FALSE)
 
-maom.pp.data <- data.frame(c(y_pred_maom,maomList$y),c(rep("y_pred",length(y_pred_maom)),rep("y_obs",length(maomList$y))))
+maom.pp.data <- data.frame(
+                            c(y_pred_maom,maomList$y),
+                            c(rep("y_pred",length(y_pred_maom)),
+                              rep("y_obs",length(maomList$y)))
+                            )
 names(maom.pp.data) <- c("y","type")
 
 ggplot(maom.pp.data, aes(x=y)) + 
   geom_density(aes(group=type, fill=type), alpha=0.75) + theme_bw() +
   xlab("MAOM") + ylab("Density") +
-  scale_fill_manual(values=wesanderson::wes_palette("Royal1",n=2)) +
+  scale_fill_manual(values=wes_palette("Royal1",n=2)) +
   theme(
     legend.title = element_blank(),
     legend.position = c(0.85,0.55),
@@ -300,17 +313,21 @@ ggplot(maom.pp.data, aes(x=y)) +
     plot.background = element_rect(fill="white")
   )
 
-# SIR
+### SIR
 y_pred_sir <- extract(SIR,pars='y_tilde')
 y_pred_sir <- unlist(y_pred_sir, use.names=FALSE)
 
-sir.pp.data <- data.frame(c(y_pred_sir,sirList$y),c(rep("y_pred",length(y_pred_sir)),rep("y_obs",length(sirList$y))))
+sir.pp.data <- data.frame(
+                          c(y_pred_sir,sirList$y),
+                          c(rep("y_pred",length(y_pred_sir)),
+                            rep("y_obs",length(sirList$y)))
+                          )
 names(sir.pp.data) <- c("y","type")
 
 ggplot(sir.pp.data, aes(x=y)) + 
   geom_density(aes(group=type, fill=type), alpha=0.75) + theme_bw() +
   xlab("Substrate-induced Respiration") + ylab("Density") +
-  scale_fill_manual(values=wesanderson::wes_palette("Royal1",n=2)) +
+  scale_fill_manual(values=wes_palette("Royal1",n=2)) +
   theme(
     legend.title = element_blank(),
     legend.position = c(0.85,0.55),
@@ -318,27 +335,3 @@ ggplot(sir.pp.data, aes(x=y)) +
     panel.background = element_rect(fill="white"),
     plot.background = element_rect(fill="white")
   )
-
-# OM models without other pools
-maomList <- list(
-  N = nrow(som.data),
-  K = ncol(som.data[,c('typeHome','typeWheat','Dmun','Fines','pH')]),
-  y = som.data$MAOM.C,
-  x = som.data[,c('typeHome','typeWheat','Dmun','Fines','pH')]
-)
-sirList <- list(
-  N = nrow(som.data),
-  K = ncol(som.data[,c('typeHome','typeWheat','Dmun','Fines','pH')]),
-  y = som.data$SIR,
-  x = som.data[,c('typeHome','typeWheat','Dmun','Fines','pH')]
-)
-
-MAOM <- stan(file = "Stan/final_models/som.stan",
-             data = maomList,
-             iter = 2000, chains = 4)
-SIR <- stan(file = "Stan/final_models/som.stan",
-            data = sirList,
-            iter = 2000, chains = 4)
-
-print(MAOM,pars=c('beta'),probs=c(0.05,0.95))
-print(SIR,pars=c('beta'),probs=c(0.05,0.95))

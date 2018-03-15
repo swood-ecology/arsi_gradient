@@ -19,7 +19,7 @@ transformed data {
 }
 parameters {
   // Define standardized parameters
-  real alpha_std;
+  real alpha_std;             // Intercept
   vector[K] beta_std;         // Fixed effects
   real<lower=0> sigma_y;      // FE variance
 }

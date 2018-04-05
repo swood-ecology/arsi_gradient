@@ -51,84 +51,61 @@ yield.data <- as.data.frame(yield.data)
 ### because of expectation that aggrgate yield and amino acids depend on N
 yield.list <- list(
                     N=nrow(yield.data),
-                    K=6,
-                    fert=yield.data$N.appl.p.ha,
-                    maom=yield.data$MAOM.N,
-                    pom=yield.data$POM.N,
-                    pH=yield.data$pH,
-                    nf=yield.data$locationNearForest,
-                    mid=yield.data$locationMiddle,
-                    y=yield.data$WheatYield
+                    K=ncol(yield.data[,c('locationNearForest','locationMiddle','N.appl.p.ha','MAOM.N','POM.N','pH')]),
+                    y=yield.data$WheatYield,
+                    x=yield.data[,c('locationNearForest','locationMiddle','N.appl.p.ha','MAOM.N','POM.N','pH')]
 )
 pro.list <- list(
-                    N=nrow(yield.data),
-                    K=6,
-                    fert=yield.data$N.appl.p.ha,
-                    maom=yield.data$MAOM.N,
-                    pom=yield.data$POM.N,
-                    pH=yield.data$pH,
-                    nf=yield.data$locationNearForest,
-                    mid=yield.data$locationMiddle,
-                    y=yield.data$Protein
+                  N=nrow(yield.data),
+                  K=ncol(yield.data[,c('locationNearForest','locationMiddle','N.appl.p.ha','MAOM.N','POM.N','pH')]),
+                  y=yield.data$Protein*100,
+                  x=yield.data[,c('locationNearForest','locationMiddle','N.appl.p.ha','MAOM.N','POM.N','pH')]
 )
 ### Use MAOM C for Zn and Fe models because of expectation 
 ### that CEC is important for micronutrients
 zn.list <- list(
-                    N=nrow(yield.data),
-                    K=6,
-                    fert=yield.data$N.appl.amt,
-                    maom=yield.data$MAOM.C,
-                    pom=yield.data$POM.N,
-                    pH=yield.data$pH,
-                    nf=yield.data$locationNearForest,
-                    mid=yield.data$locationMiddle,
-                    y=yield.data$Zn.crop
+                N=nrow(yield.data),
+                K=ncol(yield.data[,c('locationNearForest','locationMiddle','N.appl.p.ha','MAOM.C','POM.N','pH')]),
+                y=yield.data$Zn.crop,
+                x=yield.data[,c('locationNearForest','locationMiddle','N.appl.p.ha','MAOM.C','POM.N','pH')]
 )
+
 fe.list <- list(
-                    N=nrow(yield.data),
-                    K=6,
-                    fert=yield.data$N.appl.amt,
-                    maom=yield.data$MAOM.C,
-                    pom=yield.data$POM.N,
-                    pH=yield.data$pH,
-                    nf=yield.data$locationNearForest,
-                    mid=yield.data$locationMiddle,
-                    y=yield.data$Fe.crop
+                N=nrow(yield.data),
+                K=ncol(yield.data[,c('locationNearForest','locationMiddle','N.appl.p.ha','MAOM.C','POM.N','pH')]),
+                y=yield.data$Fe.crop,
+                x=yield.data[,c('locationNearForest','locationMiddle','N.appl.p.ha','MAOM.C','POM.N','pH')]
 )
 
 ## Call Stan models
-yield.model <- stan(file = "Stan/final_models/yield_and_nutrients.stan", 
+yield.model <- stan(file = "Stan/final_models/yield-nutrients.stan", 
                     data = yield.list, 
                     control = list(adapt_delta=0.99,max_treedepth=15), chains = 4)
-pro.model <- stan(file = "Stan/final_models/yield_and_nutrients.stan", 
+pro.model <- stan(file = "Stan/final_models/yield-nutrients.stan", 
                     data = pro.list, 
                     control = list(adapt_delta=0.99,max_treedepth=15), chains = 4)
-zn.model <- stan(file = "Stan/final_models/yield_and_nutrients.stan", 
+zn.model <- stan(file = "Stan/final_models/yield-nutrients.stan", 
                     data = zn.list, 
                     control = list(adapt_delta=0.99,max_treedepth=15), chains = 4)
-fe.model <- stan(file = "Stan/final_models/yield_and_nutrients.stan", 
+fe.model <- stan(file = "Stan/final_models/yield-nutrients.stan", 
                     data = fe.list, 
                     control = list(adapt_delta=0.99,max_treedepth=15), chains = 4)
 
 ## Model results
 ### Wheat yield
-print(yield.model,pars=c("beta_fert","beta_maom","beta_pom","beta_pH","beta_mid","beta_nf"),
-      probs=c(0.05,0.95))
+print(yield.model,pars='beta',probs=c(0.05,0.95))
 plot(yield.model,pars=c("beta_std"))
 
 ### Protein
-print(pro.model,pars=c("beta_fert","beta_maom","beta_pom","beta_pH","beta_mid","beta_nf"),
-      probs=c(0.05,0.95))
+print(pro.model,pars='beta',probs=c(0.05,0.95))
 plot(pro.model,pars=c("beta_std"))
 
 ### Zinc
-print(zn.model,pars=c("beta_fert","beta_maom","beta_pom","beta_pH","beta_mid","beta_nf"),
-      probs=c(0.05,0.95))
+print(zn.model,pars='beta',probs=c(0.05,0.95))
 plot(zn.model,pars=c("beta_std"))
 
 ### Iron
-print(fe.model,pars=c("beta_fert","beta_maom","beta_pom","beta_pH","beta_mid","beta_nf"),
-      probs=c(0.05,0.95))
+print(fe.model,pars='beta',probs=c(0.05,0.95))
 plot(fe.model,pars=c("beta_std"))
 
 ## Posterior predictive checks

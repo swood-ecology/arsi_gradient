@@ -18,12 +18,16 @@ transformed data {
   vector[N] maom_std;
   vector[N] pom_std;
   vector[N] pH_std;
+  vector[N] nf_std;
+  vector[N] mid_std;
 
   // Standardize variables
   fert_std = (fert - mean(fert)) / (2*sd(fert));
   maom_std = (maom - mean(maom)) / (2*sd(maom));
   pom_std = (pom - mean(pom)) / (2*sd(pom));
   pH_std = (pH - mean(pH)) / (2*sd(pH));
+  nf_std = nf - mean(nf);
+  mid_std = mid - mean(mid);
 }
 parameters  {
   // Define standardized parameters
@@ -38,7 +42,7 @@ model {
   sigma_std ~ cauchy(0,5);
 
   // Run model
-  y ~ lognormal(fert_std*beta_std[1] + maom_std*beta_std[2] + pom_std*beta_std[3] + pH_std*beta_std[4] + nf*beta_std[5] + mid*beta_std[6] + alpha_std,sigma_std);
+  y ~ lognormal(fert_std*beta_std[1] + maom_std*beta_std[2] + pom_std*beta_std[3] + pH_std*beta_std[4] + nf_std*beta_std[5] + mid_std*beta_std[6] + alpha_std,sigma_std);
 }
 generated quantities {
   // Generate natural parameters
@@ -53,5 +57,5 @@ generated quantities {
   // Predict data
   vector[N] y_tilde;
   for (n in 1:N)
-    y_tilde[n] = lognormal_rng(fert_std[n]*beta_std[1] + maom_std[n]*beta_std[2] + pom_std[n]*beta_std[3] + pH_std[n]*beta_std[4] + nf[n]*beta_std[5] + mid[n]*beta_std[6] + alpha_std,sigma_std);
+    y_tilde[n] = lognormal_rng(fert_std[n]*beta_std[1] + maom_std[n]*beta_std[2] + pom_std[n]*beta_std[3] + pH_std[n]*beta_std[4] + nf_std[n]*beta_std[5] + mid_std[n]*beta_std[6] + alpha_std,sigma_std);
 }

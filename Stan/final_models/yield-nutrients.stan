@@ -12,9 +12,9 @@ transformed data {
   matrix[N,K] x_std;
   
   // Transform data matrix to standardized
-  for (k in 1:4) // Centering binary variables
+  for (k in 1:2) // Centering binary variables
     x_std[,k] = (x[,k] - mean(x[,k]));
-  for (k in 5:K) // Standardizing quantitative variables
+  for (k in 3:K) // Standardizing quantitative variables
     x_std[,k] = (x[,k] - mean(x[,k])) / (2*sd(x[,k]));
 }
 parameters {

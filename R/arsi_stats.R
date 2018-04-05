@@ -2,7 +2,7 @@
 # Title:        Arsi soil and crop analysis                                         #
 # Description:  Crop and soil data along a distance-to-forest gradient in Ethiopia  #
 # Author:       Stephen Wood                                                        #
-# Last updated: 3/14/18                                                             #
+# Last updated: 4/5/18                                                              #
 #####################################################################################
 
 # LOAD PACKAGES
@@ -322,6 +322,123 @@ sir.pp.data <- data.frame(
                           c(rep("y_pred",length(y_pred_sir)),
                             rep("y_obs",length(sirList$y)))
                           )
+names(sir.pp.data) <- c("y","type")
+
+ggplot(sir.pp.data, aes(x=y)) + 
+  geom_density(aes(group=type, fill=type), alpha=0.75) + theme_bw() +
+  xlab("Substrate-induced Respiration") + ylab("Density") +
+  scale_fill_manual(values=wes_palette("Royal1",n=2)) +
+  theme(
+    legend.title = element_blank(),
+    legend.position = c(0.85,0.55),
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill="white"),
+    plot.background = element_rect(fill="white")
+  )
+
+
+# Re-run Question 2 models for wheat only
+
+## Filter data to wheat fields
+som.data.wheat <- filter(som.data,typeHome==0)
+
+## Convert data to list
+pomList <- list(
+  N = nrow(som.data.wheat),
+  K = ncol(som.data.wheat[,c('locationMiddle','locationNearForest','locationForest','pH')]),
+  y = som.data.wheat$POM.C,
+  x = som.data.wheat[,c('locationMiddle','locationNearForest','locationForest','pH')]
+)
+maomList <- list(
+  N = nrow(som.data.wheat),
+  K = ncol(som.data.wheat[,c('locationMiddle','locationNearForest','locationForest','pH')]),
+  y = som.data.wheat$POM.C,
+  x = som.data.wheat[,c('locationMiddle','locationNearForest','locationForest','pH')]
+)
+sirList <- list(
+  N = nrow(som.data.wheat),
+  K = ncol(som.data.wheat[,c('locationMiddle','locationNearForest','locationForest','pH')]),
+  y = som.data.wheat$POM.C,
+  x = som.data.wheat[,c('locationMiddle','locationNearForest','locationForest','pH')]
+)
+
+## Execute models
+POM <- stan(file = "Stan/final_models/som.stan",
+            data = pomList,
+            iter = 2000, chains = 4)
+MAOM <- stan(file = "Stan/final_models/som.stan",
+             data = maomList,
+             iter = 2000, chains = 4)
+SIR <- stan(file = "Stan/final_models/som.stan",
+            data = sirList,
+            iter = 2000, chains = 4)
+
+## Print model results
+print(POM,pars=c('beta'),probs=c(0.05,0.95))
+plot(POM,pars=c('beta_std'))
+
+print(MAOM,pars=c('beta'),probs=c(0.05,0.95))
+plot(MAOM,pars=c('beta_std'))
+
+print(SIR,pars=c('beta'),probs=c(0.05,0.95))
+plot(SIR,pars=c('beta_std'))
+
+## Posterior predictive checks
+### POM
+y_pred_pom <- extract(POM,pars='y_tilde')
+y_pred_pom <- unlist(y_pred_pom, use.names=FALSE)
+
+pom.pp.data <- data.frame(
+  c(y_pred_pom,pomList$y),
+  c(rep("y_pred",length(y_pred_pom)),
+    rep("y_obs",length(pomList$y)))
+)
+names(pom.pp.data) <- c("y","type")
+
+ggplot(pom.pp.data, aes(x=y)) + 
+  geom_density(aes(group=type, fill=type), alpha=0.75) + theme_bw() +
+  xlab("POM") + ylab("Density") +
+  scale_fill_manual(values=wes_palette("Royal1",n=2)) +
+  theme(
+    legend.title = element_blank(),
+    legend.position = c(0.85,0.55),
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill="white"),
+    plot.background = element_rect(fill="white")
+  )
+
+### MAOM
+y_pred_maom <- extract(MAOM,pars='y_tilde')
+y_pred_maom <- unlist(y_pred_maom, use.names=FALSE)
+
+maom.pp.data <- data.frame(
+  c(y_pred_maom,maomList$y),
+  c(rep("y_pred",length(y_pred_maom)),
+    rep("y_obs",length(maomList$y)))
+)
+names(maom.pp.data) <- c("y","type")
+
+ggplot(maom.pp.data, aes(x=y)) + 
+  geom_density(aes(group=type, fill=type), alpha=0.75) + theme_bw() +
+  xlab("MAOM") + ylab("Density") +
+  scale_fill_manual(values=wes_palette("Royal1",n=2)) +
+  theme(
+    legend.title = element_blank(),
+    legend.position = c(0.85,0.55),
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill="white"),
+    plot.background = element_rect(fill="white")
+  )
+
+### SIR
+y_pred_sir <- extract(SIR,pars='y_tilde')
+y_pred_sir <- unlist(y_pred_sir, use.names=FALSE)
+
+sir.pp.data <- data.frame(
+  c(y_pred_sir,sirList$y),
+  c(rep("y_pred",length(y_pred_sir)),
+    rep("y_obs",length(sirList$y)))
+)
 names(sir.pp.data) <- c("y","type")
 
 ggplot(sir.pp.data, aes(x=y)) + 

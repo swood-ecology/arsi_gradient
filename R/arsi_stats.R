@@ -10,6 +10,7 @@ library(tidyverse)      # For reading in data
 library(arm)            # For standardize() function
 library(rstan)          # For interfacing with Stan
 library(wesanderson)    # Color palette for plots
+library(soiltexture)    # For plotting soil texture
 source("R/panel_cor.R") # For plotting pairs plots with correlations
 
 # READ DATA
@@ -17,10 +18,12 @@ arsi <- read_csv("data/arsi_full_data.csv")
 names(arsi)[4:24] <- c('Protein','Fe.crop','Zn.crop','Area','FoodYield','WheatYield','N.appl.amt','N.appl.p.ha','SIR','POM.C','MAOM.C','POM.N','MAOM.N','Sand','Silt','Clay','pH','Cu','Fe','Mn','Zn')
 
 # GENERATE NEW VARIABLES
+arsi$pH <- 10^arsi$pH
 arsi$Protein <- arsi$Protein/100
 arsi$MAOM.C.N <- arsi$MAOM.C/arsi$MAOM.N
 arsi$POM.C.N <- arsi$POM.C/arsi$POM.N
 arsi$Fines <- arsi$Silt + arsi$Clay
+arsi$Texture <- arsi$Fines/arsi$Sand
 
 ## Define dummies
 arsi <- cbind(arsi, dummies::dummy(arsi$Type), dummies::dummy(arsi$Location)) %>% 
@@ -29,11 +32,20 @@ names(arsi)[39:45] <- c('typeForest','typeHome','typeWheat','locationForest',
                         'locationMiddle','locationNearForest','locationRoad')
 
 # ASSESS CORRELATIONS
-corr.vars <- c("WheatYield","N.appl.amt","POM.C","MAOM.C","POM.N","MAOM.N","Sand",
-               "Silt","Clay","Cu","Fe","Mn","Zn","Dmun","Trd",
-               "MAOM.C.N","POM.C.N","pH")
+corr.vars <- c("WheatYield","N.appl.p.ha","POM.C","MAOM.C","POM.N","MAOM.N",
+               "Texture","Cu","Fe","Mn","Zn","Dmun","MAOM.C.N","POM.C.N","pH")
 pairs(arsi[,corr.vars], lower.panel = panel.smooth, upper.panel = panel_cor)
 
+# PLOT TEXTURE DATA
+text.dat <- arsi[,c('Clay', 'Silt','Sand','SIR')]
+names(text.dat) <- c("CLAY","SILT","SAND","SIR")
+TT.plot(
+  class.sys = "USDA.TT",
+  tri.data = as.data.frame(text.dat),
+  z.name="SIR",
+  main = "Arsi Negele soil texture"
+)
+rm(text.dat)
 
 # QUESTION 1
 # Do yield and nutrients increase or decrease with distance to road?

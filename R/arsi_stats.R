@@ -24,11 +24,14 @@ arsi$MAOM.C.N <- arsi$MAOM.C/arsi$MAOM.N
 arsi$POM.C.N <- arsi$POM.C/arsi$POM.N
 arsi$Fines <- arsi$Silt + arsi$Clay
 arsi$Texture <- arsi$Fines/arsi$Sand
+arsi$MAOM.C.perc <- arsi$MAOM.C*10
+arsi$MAOM.N.perc <- arsi$MAOM.N*10
+arsi$POM.N.perc <- arsi$POM.N*10
 
 ## Define dummies
 arsi <- cbind(arsi, dummies::dummy(arsi$Type), dummies::dummy(arsi$Location)) %>% 
             as.tibble()
-names(arsi)[39:45] <- c('typeForest','typeHome','typeWheat','locationForest',
+names(arsi)[43:49] <- c('typeForest','typeHome','typeWheat','locationForest',
                         'locationMiddle','locationNearForest','locationRoad')
 
 # ASSESS CORRELATIONS
@@ -53,8 +56,8 @@ rm(text.dat)
 ## Define data
 yield.vars <- c("WheatYield","Fe.crop","Zn.crop","Protein","N.appl.amt","N.appl.p.ha",
                 "pH","Fe","Zn","POM.N","POM.C","MAOM.C","MAOM.N","MAOM.C.N","POM.C.N",
-                "locationMiddle","locationNearForest","locationRoad","typeWheat",
-                "typeHome")
+                "MAOM.C.perc","MAOM.N.perc","POM.N.perc","locationMiddle","locationNearForest",
+                "locationRoad","typeWheat","typeHome")
 yield.data <- arsi[complete.cases(arsi[,yield.vars]),c(yield.vars)]
 yield.data <- as.data.frame(yield.data)
 
@@ -209,8 +212,129 @@ ggplot(fe.pp.data, aes(x=y)) +
   )
 rm(y_pred)
 
-
 # QUESTION 2
+# Estimating nutrition impacts of nutrient gains from SOM
+
+## Establish and convert parameters
+protein.mean <- 0.20/10
+zinc.mean <- 0.14/10
+protein.5 <- -0.02/10
+zinc.5 <- 0.07/10
+protein.95 <- 0.43/10
+zinc.95 <- 0.20/10
+
+## Individual RDA for nutrients (Ethiopia specific estimate)
+zn.rda <- 6.232   # mg / d
+fe.rda <- 32.502  # mg / d
+pro.rda <- 28.622 # g / d
+
+## Total number of extra people nourished
+ppl.nourished <- arsi[,c(1:3,46:49)]
+
+ppl.nourished$pro.mean <- ((arsi$WheatYield * arsi$Area * 1000 * protein.mean)/365) / pro.rda
+ppl.nourished$zn.mean <- ((arsi$WheatYield * arsi$Area * 1000 * zinc.mean)/365) / zn.rda
+
+ppl.nourished$pro.min <- ((arsi$WheatYield * arsi$Area * 1000 * protein.5)/365) / pro.rda
+ppl.nourished$zn.min <- ((arsi$WheatYield * arsi$Area * 1000 * zinc.5)/365) / zn.rda
+
+ppl.nourished$pro.max <- ((arsi$WheatYield * arsi$Area * 1000 * protein.95)/365) / pro.rda
+ppl.nourished$zn.max <- ((arsi$WheatYield * arsi$Area * 1000 * zinc.95)/365) / zn.rda
+
+## Plot effects
+plot.data <- ppl.nourished %>% 
+  group_by(Location) %>% 
+  summarise(
+    pro_mean = mean(pro.mean,na.rm=T),
+    pro_sd = sd(pro.mean,na.rm=T),
+    zn_mean = mean(zn.mean,na.rm=T),
+    zn_sd = sd(zn.mean,na.rm=T),
+    pro_min = mean(pro.min,na.rm=T),
+    pro_min_sd = sd(pro.min,na.rm=T),
+    zn_min = mean(zn.min,na.rm=T),
+    zn_min_sd = sd(zn.min,na.rm=T),
+    pro_max = mean(pro.max,na.rm=T),
+    pro_max_sd = sd(pro.max,na.rm=T),
+    zn_max = mean(zn.max,na.rm=T),
+    zn_max_sd = sd(zn.max,na.rm=T)
+    ) %>%
+  filter(Location!='Forest')
+
+plot.data$Location <- factor(plot.data$Location, levels=c("Road", "Middle", "Near Forest"))
+
+ggplot(plot.data,aes(x=Location,y=pro_mean)) + 
+  geom_bar(aes(x=Location,y=pro_max),
+           stat="identity",
+           color="red",
+           fill="white",
+           position="dodge",
+           alpha=0.25) +
+  geom_bar(aes(x=Location,y=pro_min),
+           stat="identity",
+           alpha=0.25,
+           color="red",
+           fill="white") +
+  geom_bar(stat="identity",fill="grey30",color="grey30") +
+  geom_errorbar(aes(ymin=pro_mean-pro_sd,ymax=pro_mean+pro_sd),
+                size=0.25,
+                width = 0.05,
+                color="grey70",
+                position = "dodge") +
+  geom_errorbar(aes(ymin=pro_min-pro_sd,ymax=pro_min+pro_sd),
+                size=0.25,
+                width = 0.05,
+                color="grey70",
+                position = "dodge") +
+  geom_errorbar(aes(ymin=pro_max-pro_sd,ymax=pro_max+pro_sd),
+                size=0.25,
+                width = 0.05,
+                color="grey70",
+                position = "dodge") +
+  theme_bw() + ylab("Number of people\n") + xlab("") + 
+  labs(title="Protein",subtitle="Additional people whose protein needs could be met by increasing SOM by 1%") +
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill="white"),
+    plot.background = element_rect(fill="white")
+  )
+
+ggplot(plot.data,aes(x=Location,y=zn_mean)) + 
+  geom_bar(aes(x=Location,y=zn_max),
+           stat="identity",
+           color="red",
+           fill="white",
+           position="dodge",
+           alpha=0.25) +
+  geom_bar(aes(x=Location,y=zn_min),
+           stat="identity",
+           alpha=0.25,
+           color="red",
+           fill="white") +
+  geom_bar(stat="identity",fill="grey30",color="grey30") +
+  geom_errorbar(aes(ymin=zn_mean-zn_sd,ymax=zn_mean+zn_sd),
+                size=0.25,
+                width = 0.05,
+                color="grey70",
+                position = "dodge") +
+  geom_errorbar(aes(ymin=zn_min-zn_sd,ymax=zn_min+zn_sd),
+                size=0.25,
+                width = 0.05,
+                color="grey70",
+                position = "dodge") +
+  geom_errorbar(aes(ymin=zn_max-zn_sd,ymax=zn_max+zn_sd),
+                size=0.25,
+                width = 0.05,
+                color="grey70",
+                position = "dodge") +
+  theme_bw() + ylab("Number of people\n") + xlab("") + 
+  labs(title="Zinc",subtitle="Additional people whose zinc needs could be met by increasing SOM by 1%") +
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill="white"),
+    plot.background = element_rect(fill="white")
+  )
+
+
+# QUESTION 3
 # Does SOM vary along the same landscape gradient as yield?
 
 ## Set up data for Stan

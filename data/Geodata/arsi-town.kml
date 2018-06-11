@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2" xmlns:kml="http://www.opengis.net/kml/2.2" xmlns:atom="http://www.w3.org/2005/Atom">
+<Document>
+	<name>arsi-town.kml</name>
+	<Style id="s_ylw-pushpin">
+		<IconStyle>
+			<scale>1.1</scale>
+			<Icon>
+				<href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href>
+			</Icon>
+			<hotSpot x="20" y="2" xunits="pixels" yunits="pixels"/>
+		</IconStyle>
+	</Style>
+	<StyleMap id="m_ylw-pushpin">
+		<Pair>
+			<key>normal</key>
+			<styleUrl>#s_ylw-pushpin</styleUrl>
+		</Pair>
+		<Pair>
+			<key>highlight</key>
+			<styleUrl>#s_ylw-pushpin_hl</styleUrl>
+		</Pair>
+	</StyleMap>
+	<Style id="s_ylw-pushpin_hl">
+		<IconStyle>
+			<scale>1.3</scale>
+			<Icon>
+				<href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href>
+			</Icon>
+			<hotSpot x="20" y="2" xunits="pixels" yunits="pixels"/>
+		</IconStyle>
+	</Style>
+	<Placemark>
+		<name>Arsi Negele</name>
+		<styleUrl>#m_ylw-pushpin</styleUrl>
+		<Polygon>
+			<tessellate>1</tessellate>
+			<outerBoundaryIs>
+				<LinearRing>
+					<coordinates>
+						38.67224655361807,7.37455121872665,0 38.66717425639925,7.374049635328364,0 38.66130121418222,7.364821994631627,0 38.65835084038912,7.355820215807507,0 38.66301204112503,7.350992008951533,0 38.66723206995927,7.349652434925973,0 38.66634293695444,7.343410521803154,0 38.66170397529,7.337627876526955,0 38.66585883036235,7.335960472639477,0 38.67000167231195,7.338277976087162,0 38.67856814105127,7.337722442891998,0 38.68011121770657,7.341368291711056,0 38.68449378734076,7.344222919705095,0 38.68631936282327,7.345567283415877,0 38.68850402270645,7.348082390361113,0 38.68935042672674,7.348278692126215,0 38.69155554051255,7.350787455267207,0 38.6927575810203,7.353105241580913,0 38.69186970790223,7.355721230332876,0 38.68264329478659,7.360280244191308,0 38.68179940489187,7.364398569616547,0 38.67224655361807,7.37455121872665,0 
+					</coordinates>
+				</LinearRing>
+			</outerBoundaryIs>
+		</Polygon>
+	</Placemark>
+</Document>
+</kml>

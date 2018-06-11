@@ -1,7 +1,7 @@
 #################################################
 # Script to map sampling points in Arsi Negele  #
 # Stephen Wood                                  #
-# Last updated: May 21, 2018                    #
+# Last updated: May 31, 2018                    #
 #################################################
 
 
@@ -10,21 +10,29 @@ library(sf)
 library(tidyverse)
 library(rgdal)
 library(maptools)
-library(ggplot2)
+library(raster)     # For scalebar
 
 # READ IN DATA
 ## Farm points
 farms <- readxl::read_excel("data/Geodata/GPS coordinate sampling points.xlsx")
 names(farms)[1] <- 'ID'
+farms$ID <- as.factor(farms$ID)
 
 ## Convert points to sf object
-farms_sf <- st_as_sf(farms, coords = c("Long", "Lat"), 
-                     crs = 4326)
+farms_sp = st_as_sf(farms, coords = c("Long", "Lat"), crs = 4326)
 
-## Zones data
-zone_1 <- st_read("data/Geodata/Zone1.shp")
-zone_2 <- st_read("data/Geodata/Zone2.shp")
-zone_3 <- st_read("data/Geodata/Zone3.shp")
+## Zones
+zones <- st_read("data/Geodata/Villages_merged.kml")
+
+## Arsi Negele
+an_town <- st_read("data/Geodata/arsi-town.kml")
+
+## Roads
+rd <- st_read("data/Geodata/road.kml")
+hwy <- st_read("data/Geodata/natl-hwy.kml")
+
+# ### merge roads into one
+# roads <- rbind(rd,hwy) 
 
 # ## reformat problematic Munesa data (approach from Jeff Evans)
 # m <- readOGR(getwd(), "Munesa_repair")
@@ -55,59 +63,58 @@ zone_3 <- st_read("data/Geodata/Zone3.shp")
 # 
 ## read working munesa shapefile
 munesa <- st_read("data/Geodata/Munesa_bdy.shp")
-#new_munesa <- st_read("data/Geodata/New_Munesa.shp")
-munesa <- st_transform(munesa,st_crs(zone_1))
+munesa <- st_transform(munesa,st_crs(zones))
 
-## merge zone polygons together into one
-zone_polygons <- rbind(zone_1,zone_2) %>%
-                  rbind(zone_3)
-zone_polygons <- zone_polygons[,!c(zone_polygons$Name,zone_polygons$FolderPath)]
-
-## define custom bounding box
-box <- st_polygon(list(rbind(c(38.71,7.22),c(38.87,7.22),c(38.87,7.34),c(38.71,7.34),
-                            c(38.71,7.22))))
-box = st_sfc(box) %>% st_set_crs(4326)
-
-## subset munesa data set
-new_munesa <- st_intersection(munesa,box)
 
 # MAKE PLOTS
 ## Base plotting
-plot(farms_sf["Type"],
-     xlim=c(38.72,38.81),
-     ylim=c(7.28,7.35),
-     axes=TRUE,
-     cex.axis=.6,
-     key.pos=3,
-     pch=20,
-     main=NULL,
-     reset=FALSE
+plot(st_geometry(hwy),
+     xlim=c(38.645,38.81),
+     ylim=c(7.285,7.34),
+     lwd=2
 )
-plot(st_geometry(new_munesa),
+plot(st_geometry(munesa),
      col="grey90",
      border="grey90",
-     xlim=c(38.72,38.81),
-     ylim=c(7.28,7.35),
      add=T
 )
-plot(st_geometry(zone_polygons),
-     xlim=c(38.72,38.81),
-     ylim=c(7.28,7.35),
+plot(st_geometry(rd),
+     add=T
+)
+plot(st_geometry(an_town),
+     col="white",
+     lwd=0.4,
+     add=T
+)
+plot(st_geometry(zones),
      border='grey40',
+     lwd=0.5,
      add=T
 )
-plot(farms_sf["Type"],
-     xlim=c(38.72,38.81),
-     ylim=c(7.28,7.35),
+plot(farms_sp["Type"],
      pch=20,
+     key.pos=3,
      axes=TRUE,
      cex.axis=.6,
+     cex=0.75,
+     pal=c("#66c2a5","#fc8d62","#8da0cb"),
      main=NULL,
      add=T
 )
+scalebar(5, xy=click(), type='bar', lonlat=T, below="km", divs=4, lwd=0.25)
 
-## ggplot
-ggplot() + 
-  geom_sf(data=new_munesa) +
-  geom_sf(data=zone_polygons) +
-  geom_sf(aes(color=Type),data=farms_sf)
+
+# ## ggplot
+# ggplot() + 
+#   geom_sf(data=new_munesa) +
+#   geom_sf(data=zone_polygons) +
+#   geom_sf(data=an_town) +
+#   geom_sf(aes(color=Type),size=0.5,data=farms_sf) +
+#   theme(
+#     legend.title = element_blank(),
+#     legend.position = "bottom",
+#     panel.grid = element_blank(),
+#     panel.grid.major = element_line(color = 'white'),
+#     panel.background = element_rect(fill="white"),
+#     plot.background = element_rect(fill="white")
+# )

@@ -72,10 +72,10 @@ yield.list <- list(
                     x=yield.data[,c('locationNearForest','locationMiddle','N.appl.p.ha','MAOM.N','POM.N','pH')]
 )
 pro.list <- list(
-                  N=nrow(yield.data),
-                  K=ncol(yield.data[,c('locationNearForest','locationMiddle','N.appl.p.ha','MAOM.N','POM.N','pH')]),
-                  y=yield.data$Protein*100,
-                  x=yield.data[,c('locationNearForest','locationMiddle','N.appl.p.ha','MAOM.N','POM.N','pH')]
+  N=nrow(yield.data),
+  K=ncol(yield.data[,c('locationNearForest','locationMiddle','N.appl.p.ha','MAOM.N','POM.N','pH')]),
+  y=yield.data$Protein*100,
+  x=yield.data[,c('locationNearForest','locationMiddle','N.appl.p.ha','MAOM.N','POM.N','pH')]
 )
 ### Use MAOM C for Zn and Fe models because of expectation 
 ### that CEC is important for micronutrients
@@ -98,8 +98,8 @@ yield.model <- stan(file = "Stan/final_models/yield-nutrients.stan",
                     data = yield.list, 
                     control = list(adapt_delta=0.99,max_treedepth=15), chains = 4)
 pro.model <- stan(file = "Stan/final_models/yield-nutrients.stan", 
-                    data = pro.list, 
-                    control = list(adapt_delta=0.99,max_treedepth=15), chains = 4)
+                  data = pro.list, 
+                  control = list(adapt_delta=0.99,max_treedepth=15), chains = 4)
 zn.model <- stan(file = "Stan/final_models/yield-nutrients.stan", 
                     data = zn.list, 
                     control = list(adapt_delta=0.99,max_treedepth=15), chains = 4)
@@ -213,8 +213,28 @@ ggplot(fe.pp.data, aes(x=y)) +
   )
 rm(y_pred)
 
+
 # QUESTION 2
 # Estimating nutrition impacts of nutrient gains from SOM
+pro.list <- list(
+  N=nrow(yield.data),
+  K=6,
+  nf=yield.data$locationNearForest,
+  mid=yield.data$locationMiddle,
+  maom=yield.data$MAOM.N,
+  pom=yield.data$POM.N,
+  pH=yield.data$pH,
+  fert=yield.data$N.appl.p.ha,
+  y=yield.data$Protein*100
+)
+pro.model <- stan(file = "Stan/final_models/nutrients.stan", 
+                  data = pro.list, 
+                  control = list(adapt_delta=0.99,max_treedepth=15), chains = 4)
+print(pro,pars='beta',probs=c(0.05,0.95))
+pro <- extract(pro.model,pars='pro_nourished') %>% unlist(use.names=FALSE)
+hist(pro)
+
+
 
 ## Establish and convert parameters
 protein.mean <- 0.20/10
@@ -238,8 +258,18 @@ ppl.nourished$zn.mean <- ((arsi$WheatYield * arsi$Area * 1000 * zinc.mean)/365) 
 ppl.nourished$pro.min <- ((arsi$WheatYield * arsi$Area * 1000 * protein.5)/365) / pro.rda
 ppl.nourished$zn.min <- ((arsi$WheatYield * arsi$Area * 1000 * zinc.5)/365) / zn.rda
 
-ppl.nourished$pro.max <- ((arsi$WheatYield * arsi$Area * 1000 * protein.95)/365) / pro.rda
-ppl.nourished$zn.max <- ((arsi$WheatYield * arsi$Area * 1000 * zinc.95)/365) / zn.rda
+ppl.nourished$pro.max <- ((arsi$WheatYield * 1000 * protein.95)/365) / pro.rda
+ppl.nourished$zn.max <- ((arsi$WheatYield * 1000 * zinc.95)/365) / zn.rda
+
+ppl.nourished$pro.mean <- ((arsi$WheatYield * 1000 * protein.mean)/365) / pro.rda
+ppl.nourished$zn.mean <- ((arsi$WheatYield * 1000 * zinc.mean)/365) / zn.rda
+
+ppl.nourished$pro.min <- ((arsi$WheatYield * 1000 * protein.5)/365) / pro.rda
+ppl.nourished$zn.min <- ((arsi$WheatYield * 1000 * zinc.5)/365) / zn.rda
+
+ppl.nourished$pro.max <- ((arsi$WheatYield * 1000 * protein.95)/365) / pro.rda
+ppl.nourished$zn.max <- ((arsi$WheatYield * 1000 * zinc.95)/365) / zn.rda
+
 
 ## Plot effects
 plot.data <- ppl.nourished %>% 

@@ -2,7 +2,7 @@
 # Title:        Arsi soil and crop analysis                                         #
 # Description:  Crop and soil data along a distance-to-forest gradient in Ethiopia  #
 # Author:       Stephen Wood                                                        #
-# Last updated: 5/31/18                                                             #
+# Last updated: 6/12/18                                                             #
 #####################################################################################
 
 # LOAD PACKAGES
@@ -225,144 +225,194 @@ pro.list <- list(
   pom=yield.data$POM.N,
   pH=yield.data$pH,
   fert=yield.data$N.appl.p.ha,
+  yield=yield.data$WheatYield,
   y=yield.data$Protein*100
 )
-pro.model <- stan(file = "Stan/final_models/nutrients.stan", 
-                  data = pro.list, 
-                  control = list(adapt_delta=0.99,max_treedepth=15), chains = 4)
-print(pro,pars='beta',probs=c(0.05,0.95))
-pro <- extract(pro.model,pars='pro_nourished') %>% unlist(use.names=FALSE)
-hist(pro)
+zn.list <- list(
+  N=nrow(yield.data),
+  K=6,
+  nf=yield.data$locationNearForest,
+  mid=yield.data$locationMiddle,
+  maom=yield.data$MAOM.N,
+  pom=yield.data$POM.N,
+  pH=yield.data$pH,
+  fert=yield.data$N.appl.p.ha,
+  yield=yield.data$WheatYield,
+  y=yield.data$Zn.crop
+)
+fe.list <- list(
+  N=nrow(yield.data),
+  K=6,
+  nf=yield.data$locationNearForest,
+  mid=yield.data$locationMiddle,
+  maom=yield.data$MAOM.N,
+  pom=yield.data$POM.N,
+  pH=yield.data$pH,
+  fert=yield.data$N.appl.p.ha,
+  yield=yield.data$WheatYield,
+  y=yield.data$Fe.crop
+)
 
+pro <- stan(file = "Stan/final_models/nutrients.stan",
+            data = pro.list, 
+            control = list(adapt_delta=0.99,max_treedepth=15), chains = 4) %>% 
+  extract(pars='pro_nourished') %>% 
+  unlist(use.names=FALSE)
+zn <- stan(file = "Stan/final_models/nutrients.stan", 
+           data = zn.list, 
+           control = list(adapt_delta=0.99,max_treedepth=15), chains = 4) %>%
+  extract(pars='zn_nourished') %>% 
+  unlist(use.names=FALSE)
 
+nour_data <- data.frame(
+  c(pro,zn),
+  c(rep("Protein",length(pro)),
+    rep("Zinc",length(zn)))
+)
+names(nour_data) <- c("ppl_nour_ha","nutrient")
 
-## Establish and convert parameters
-protein.mean <- 0.20/10
-zinc.mean <- 0.14/10
-protein.5 <- -0.02/10
-zinc.5 <- 0.07/10
-protein.95 <- 0.43/10
-zinc.95 <- 0.20/10
-
-## Individual RDA for nutrients (Ethiopia specific estimate)
-zn.rda <- 6.232   # mg / d
-fe.rda <- 32.502  # mg / d
-pro.rda <- 28.622 # g / d
-
-## Total number of extra people nourished
-ppl.nourished <- arsi[,c(1:3,46:49)]
-
-ppl.nourished$pro.mean <- ((arsi$WheatYield * arsi$Area * 1000 * protein.mean)/365) / pro.rda
-ppl.nourished$zn.mean <- ((arsi$WheatYield * arsi$Area * 1000 * zinc.mean)/365) / zn.rda
-
-ppl.nourished$pro.min <- ((arsi$WheatYield * arsi$Area * 1000 * protein.5)/365) / pro.rda
-ppl.nourished$zn.min <- ((arsi$WheatYield * arsi$Area * 1000 * zinc.5)/365) / zn.rda
-
-ppl.nourished$pro.max <- ((arsi$WheatYield * 1000 * protein.95)/365) / pro.rda
-ppl.nourished$zn.max <- ((arsi$WheatYield * 1000 * zinc.95)/365) / zn.rda
-
-ppl.nourished$pro.mean <- ((arsi$WheatYield * 1000 * protein.mean)/365) / pro.rda
-ppl.nourished$zn.mean <- ((arsi$WheatYield * 1000 * zinc.mean)/365) / zn.rda
-
-ppl.nourished$pro.min <- ((arsi$WheatYield * 1000 * protein.5)/365) / pro.rda
-ppl.nourished$zn.min <- ((arsi$WheatYield * 1000 * zinc.5)/365) / zn.rda
-
-ppl.nourished$pro.max <- ((arsi$WheatYield * 1000 * protein.95)/365) / pro.rda
-ppl.nourished$zn.max <- ((arsi$WheatYield * 1000 * zinc.95)/365) / zn.rda
-
-
-## Plot effects
-plot.data <- ppl.nourished %>% 
-  group_by(Location) %>% 
-  summarise(
-    pro_mean = mean(pro.mean,na.rm=T),
-    pro_sd = sd(pro.mean,na.rm=T),
-    zn_mean = mean(zn.mean,na.rm=T),
-    zn_sd = sd(zn.mean,na.rm=T),
-    pro_min = mean(pro.min,na.rm=T),
-    pro_min_sd = sd(pro.min,na.rm=T),
-    zn_min = mean(zn.min,na.rm=T),
-    zn_min_sd = sd(zn.min,na.rm=T),
-    pro_max = mean(pro.max,na.rm=T),
-    pro_max_sd = sd(pro.max,na.rm=T),
-    zn_max = mean(zn.max,na.rm=T),
-    zn_max_sd = sd(zn.max,na.rm=T)
-    ) %>%
-  filter(Location!='Forest')
-
-plot.data$Location <- factor(plot.data$Location, levels=c("Road", "Middle", "Near Forest"))
-
-ggplot(plot.data,aes(x=Location,y=pro_mean)) + 
-  geom_bar(aes(x=Location,y=pro_max),
-           stat="identity",
-           color="red",
-           fill="white",
-           position="dodge",
-           alpha=0.25) +
-  geom_bar(aes(x=Location,y=pro_min),
-           stat="identity",
-           alpha=0.25,
-           color="red",
-           fill="white") +
-  geom_bar(stat="identity",fill="grey30",color="grey30") +
-  geom_errorbar(aes(ymin=pro_mean-pro_sd,ymax=pro_mean+pro_sd),
-                size=0.25,
-                width = 0.05,
-                color="grey70",
-                position = "dodge") +
-  geom_errorbar(aes(ymin=pro_min-pro_sd,ymax=pro_min+pro_sd),
-                size=0.25,
-                width = 0.05,
-                color="grey70",
-                position = "dodge") +
-  geom_errorbar(aes(ymin=pro_max-pro_sd,ymax=pro_max+pro_sd),
-                size=0.25,
-                width = 0.05,
-                color="grey70",
-                position = "dodge") +
-  theme_bw() + ylab("Number of people\n") + xlab("") + 
-  labs(title="Protein",subtitle="Extra people whose protein need could be met by increasing SOM by 1%") +
+ggplot(nour_data, aes(x=ppl_nour_ha)) + 
+  geom_density(aes(group=nutrient, fill=nutrient), alpha=0.75) + theme_bw() +
+  xlab("People potentially nourished per hectare") + ylab("Density") + 
+  scale_x_continuous(breaks = scales::pretty_breaks(n=10), limits = c(-.4,1)) + 
+  scale_fill_manual(values=wes_palette("Royal1",n=2)) +
   theme(
+    legend.title = element_blank(),
+    legend.position = c(0.85,0.55),
     panel.grid = element_blank(),
     panel.background = element_rect(fill="white"),
     plot.background = element_rect(fill="white")
   )
 
-ggplot(plot.data,aes(x=Location,y=zn_mean)) + 
-  geom_bar(aes(x=Location,y=zn_max),
-           stat="identity",
-           color="red",
-           fill="white",
-           position="dodge",
-           alpha=0.25) +
-  geom_bar(aes(x=Location,y=zn_min),
-           stat="identity",
-           alpha=0.25,
-           color="red",
-           fill="white") +
-  geom_bar(stat="identity",fill="grey30",color="grey30") +
-  geom_errorbar(aes(ymin=zn_mean-zn_sd,ymax=zn_mean+zn_sd),
-                size=0.25,
-                width = 0.05,
-                color="grey70",
-                position = "dodge") +
-  geom_errorbar(aes(ymin=zn_min-zn_sd,ymax=zn_min+zn_sd),
-                size=0.25,
-                width = 0.05,
-                color="grey70",
-                position = "dodge") +
-  geom_errorbar(aes(ymin=zn_max-zn_sd,ymax=zn_max+zn_sd),
-                size=0.25,
-                width = 0.05,
-                color="grey70",
-                position = "dodge") +
-  theme_bw() + ylab("Number of people\n") + xlab("") + 
-  labs(title="Zinc",subtitle="Extra people whose zinc need could be met by increasing SOM by 1%") +
-  theme(
-    panel.grid = element_blank(),
-    panel.background = element_rect(fill="white"),
-    plot.background = element_rect(fill="white")
-  )
+###########################################
+# DEPRECATED APPROACH
+# ## Establish and convert parameters
+# protein.mean <- 0.20/10
+# zinc.mean <- 0.14/10
+# protein.5 <- -0.02/10
+# zinc.5 <- 0.07/10
+# protein.95 <- 0.43/10
+# zinc.95 <- 0.20/10
+# 
+# ## Individual RDA for nutrients (Ethiopia specific estimate)
+# zn.rda <- 6.232   # mg / d
+# fe.rda <- 32.502  # mg / d
+# pro.rda <- 28.622 # g / d
+# 
+# ## Total number of extra people nourished
+# ppl.nourished <- arsi[,c(1:3,46:49)]
+# 
+# ppl.nourished$pro.mean <- ((arsi$WheatYield * 1000 * protein.mean)/365) / pro.rda
+# ppl.nourished$zn.mean <- ((arsi$WheatYield * 1000 * zinc.mean)/365) / zn.rda
+# 
+# ppl.nourished$pro.min <- ((arsi$WheatYield * 1000 * protein.5)/365) / pro.rda
+# ppl.nourished$zn.min <- ((arsi$WheatYield * 1000 * zinc.5)/365) / zn.rda
+# 
+# ppl.nourished$pro.max <- ((arsi$WheatYield * 1000 * protein.95)/365) / pro.rda
+# ppl.nourished$zn.max <- ((arsi$WheatYield * 1000 * zinc.95)/365) / zn.rda
+# 
+# ppl.nourished$pro.mean <- ((arsi$WheatYield * 1000 * protein.mean)/365) / pro.rda
+# ppl.nourished$zn.mean <- ((arsi$WheatYield * 1000 * zinc.mean)/365) / zn.rda
+# 
+# ppl.nourished$pro.min <- ((arsi$WheatYield * 1000 * protein.5)/365) / pro.rda
+# ppl.nourished$zn.min <- ((arsi$WheatYield * 1000 * zinc.5)/365) / zn.rda
+# 
+# ppl.nourished$pro.max <- ((arsi$WheatYield * 1000 * protein.95)/365) / pro.rda
+# ppl.nourished$zn.max <- ((arsi$WheatYield * 1000 * zinc.95)/365) / zn.rda
+# 
+# 
+# ## Plot effects
+# plot.data <- ppl.nourished %>% 
+#   group_by(Location) %>% 
+#   summarise(
+#     pro_mean = mean(pro.mean,na.rm=T),
+#     pro_sd = sd(pro.mean,na.rm=T),
+#     zn_mean = mean(zn.mean,na.rm=T),
+#     zn_sd = sd(zn.mean,na.rm=T),
+#     pro_min = mean(pro.min,na.rm=T),
+#     pro_min_sd = sd(pro.min,na.rm=T),
+#     zn_min = mean(zn.min,na.rm=T),
+#     zn_min_sd = sd(zn.min,na.rm=T),
+#     pro_max = mean(pro.max,na.rm=T),
+#     pro_max_sd = sd(pro.max,na.rm=T),
+#     zn_max = mean(zn.max,na.rm=T),
+#     zn_max_sd = sd(zn.max,na.rm=T)
+#     ) %>%
+#   filter(Location!='Forest')
+# 
+# plot.data$Location <- factor(plot.data$Location, levels=c("Road", "Middle", "Near Forest"))
+# 
+# ggplot(plot.data,aes(x=Location,y=pro_mean)) + 
+#   geom_bar(aes(x=Location,y=pro_max),
+#            stat="identity",
+#            color="red",
+#            fill="white",
+#            position="dodge",
+#            alpha=0.25) +
+#   geom_bar(aes(x=Location,y=pro_min),
+#            stat="identity",
+#            alpha=0.25,
+#            color="red",
+#            fill="white") +
+#   geom_bar(stat="identity",fill="grey30",color="grey30") +
+#   geom_errorbar(aes(ymin=pro_mean-pro_sd,ymax=pro_mean+pro_sd),
+#                 size=0.25,
+#                 width = 0.05,
+#                 color="grey70",
+#                 position = "dodge") +
+#   geom_errorbar(aes(ymin=pro_min-pro_sd,ymax=pro_min+pro_sd),
+#                 size=0.25,
+#                 width = 0.05,
+#                 color="grey70",
+#                 position = "dodge") +
+#   geom_errorbar(aes(ymin=pro_max-pro_sd,ymax=pro_max+pro_sd),
+#                 size=0.25,
+#                 width = 0.05,
+#                 color="grey70",
+#                 position = "dodge") +
+#   theme_bw() + ylab("Number of people\n") + xlab("") + 
+#   labs(title="Protein",subtitle="Extra people whose protein need could be met by increasing SOM by 1%") +
+#   theme(
+#     panel.grid = element_blank(),
+#     panel.background = element_rect(fill="white"),
+#     plot.background = element_rect(fill="white")
+#   )
+# 
+# ggplot(plot.data,aes(x=Location,y=zn_mean)) + 
+#   geom_bar(aes(x=Location,y=zn_max),
+#            stat="identity",
+#            color="red",
+#            fill="white",
+#            position="dodge",
+#            alpha=0.25) +
+#   geom_bar(aes(x=Location,y=zn_min),
+#            stat="identity",
+#            alpha=0.25,
+#            color="red",
+#            fill="white") +
+#   geom_bar(stat="identity",fill="grey30",color="grey30") +
+#   geom_errorbar(aes(ymin=zn_mean-zn_sd,ymax=zn_mean+zn_sd),
+#                 size=0.25,
+#                 width = 0.05,
+#                 color="grey70",
+#                 position = "dodge") +
+#   geom_errorbar(aes(ymin=zn_min-zn_sd,ymax=zn_min+zn_sd),
+#                 size=0.25,
+#                 width = 0.05,
+#                 color="grey70",
+#                 position = "dodge") +
+#   geom_errorbar(aes(ymin=zn_max-zn_sd,ymax=zn_max+zn_sd),
+#                 size=0.25,
+#                 width = 0.05,
+#                 color="grey70",
+#                 position = "dodge") +
+#   theme_bw() + ylab("Number of people\n") + xlab("") + 
+#   labs(title="Zinc",subtitle="Extra people whose zinc need could be met by increasing SOM by 1%") +
+#   theme(
+#     panel.grid = element_blank(),
+#     panel.background = element_rect(fill="white"),
+#     plot.background = element_rect(fill="white")
+#   )
 
 
 # QUESTION 3

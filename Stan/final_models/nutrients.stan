@@ -48,7 +48,9 @@ generated quantities {
   // Estimate nutrition impacts
   // Convert parameter from g per kg to %
   real maom_coeff = beta[2] * sd(y) / sd(maom);
+  real pom_coeff = beta[3] * sd(y) / sd(pom);
   real norm_maom = maom_coeff / 10;
+  real norm_pom = pom_coeff / 10;
   
   // Calculated people potentionally nourished per hectare
   real pro_rda = 28.622;  // g / d
@@ -56,8 +58,8 @@ generated quantities {
   real fe_rda = 32.502;   // mg / d
   
   // Multiply by 10 not 1000 b/c protein is already in XX format, not 0.XX
-  vector[N] pro_nourished = ((yield * 10 * norm_maom) / 365) / pro_rda;
+  vector[N] pro_nourished = ((yield * 10 * (norm_maom + norm_pom)) / 365) / pro_rda;
   // No multiplication needed b/c micronutrients in same units as RDA
-  vector[N] zn_nourished = ((yield * norm_maom) / 365) / zn_rda;
-  vector[N] fe_nourished = ((yield * norm_maom) / 365) / fe_rda;
+  vector[N] zn_nourished = ((yield * (norm_maom + norm_pom)) / 365) / zn_rda;
+  vector[N] fe_nourished = ((yield * (norm_maom + norm_pom)) / 365) / fe_rda;
 }

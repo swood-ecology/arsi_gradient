@@ -273,8 +273,8 @@ names(nour_data) <- c("ppl_nour_ha","nutrient")
 
 ggplot(nour_data, aes(x=ppl_nour_ha)) + 
   geom_density(aes(group=nutrient, fill=nutrient), alpha=0.75) + theme_bw() +
-  xlab("People potentially nourished per hectare") + ylab("Density") + 
-  scale_x_continuous(breaks = scales::pretty_breaks(n=10), limits = c(-.4,1)) + 
+  xlab("Additional people potentially nourished per hectare") + ylab("Density") + 
+  scale_x_continuous(breaks = scales::pretty_breaks(n=10),limits = c(-0.5,1.5)) + 
   scale_fill_manual(values=wes_palette("Royal1",n=2)) +
   theme(
     legend.title = element_blank(),

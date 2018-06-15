@@ -2,7 +2,7 @@
 # Title:        Arsi soil and crop analysis                                         #
 # Description:  Crop and soil data along a distance-to-forest gradient in Ethiopia  #
 # Author:       Stephen Wood                                                        #
-# Last updated: 6/12/18                                                             #
+# Last updated: 6/15/18                                                             #
 #####################################################################################
 
 # LOAD PACKAGES
@@ -58,7 +58,7 @@ rm(text.dat)
 yield.vars <- c("WheatYield","Fe.crop","Zn.crop","Protein","N.appl.amt","N.appl.p.ha",
                 "pH","Fe","Zn","POM.N","POM.C","MAOM.C","MAOM.N","MAOM.C.N","POM.C.N",
                 "MAOM.C.perc","MAOM.N.perc","POM.N.perc","locationMiddle","locationNearForest",
-                "locationRoad","typeWheat","typeHome")
+                "locationRoad","typeWheat","typeHome","Location")
 yield.data <- arsi[complete.cases(arsi[,yield.vars]),c(yield.vars)]
 yield.data <- as.data.frame(yield.data)
 
@@ -66,16 +66,16 @@ yield.data <- as.data.frame(yield.data)
 ### Use MAOM and POM N for yield and protein 
 ### because of expectation that aggrgate yield and amino acids depend on N
 yield.list <- list(
-                    N=nrow(yield.data),
-                    K=ncol(yield.data[,c('locationNearForest','locationMiddle','N.appl.p.ha','MAOM.N','POM.N','pH')]),
-                    y=yield.data$WheatYield,
-                    x=yield.data[,c('locationNearForest','locationMiddle','N.appl.p.ha','MAOM.N','POM.N','pH')]
+                N=nrow(yield.data),
+                K=ncol(yield.data[,c('locationNearForest','locationMiddle','N.appl.p.ha','MAOM.N','POM.N','pH')]),
+                y=yield.data$WheatYield,
+                x=yield.data[,c('locationNearForest','locationMiddle','N.appl.p.ha','MAOM.N','POM.N','pH')]
 )
 pro.list <- list(
-  N=nrow(yield.data),
-  K=ncol(yield.data[,c('locationNearForest','locationMiddle','N.appl.p.ha','MAOM.N','POM.N','pH')]),
-  y=yield.data$Protein*100,
-  x=yield.data[,c('locationNearForest','locationMiddle','N.appl.p.ha','MAOM.N','POM.N','pH')]
+                N=nrow(yield.data),
+                K=ncol(yield.data[,c('locationNearForest','locationMiddle','N.appl.p.ha','MAOM.N','POM.N','pH')]),
+                y=yield.data$Protein*100,
+                x=yield.data[,c('locationNearForest','locationMiddle','N.appl.p.ha','MAOM.N','POM.N','pH')]
 )
 ### Use MAOM C for Zn and Fe models because of expectation 
 ### that CEC is important for micronutrients
@@ -216,6 +216,35 @@ rm(y_pred)
 
 # QUESTION 2
 # Estimating nutrition impacts of nutrient gains from SOM
+
+###########################################
+## What are current levels of ability to meet nutrient needs?
+# pro.nour.now <- (((yield.data$WheatYield * yield.data$Protein) * 1000) / 365) / 28.622
+# zn.nour.now <- ((yield.data$WheatYield * yield.data$Zn.crop) / 365) / 6.232
+# fe.nour.now <- ((yield.data$WheatYield * yield.data$Fe.crop) / 365) / 32.502
+# 
+# nutr <- c(pro.nour.now, zn.nour.now, fe.nour.now) %>% 
+#   data.frame(c(rep("Protein",length(pro.nour.now)),
+#           rep("Zinc",length(zn.nour.now)),
+#           rep("Iron",length(fe.nour.now))),yield.data$Location)
+# names(nutr) <- c("ppl_nour","nutrient","loc")
+# 
+# aggregate(. ~ loc + nutrient, data=nutr,FUN=median)
+# 
+# ggplot(nutr, aes(x=ppl_nour)) + 
+#   geom_density(aes(group=nutrient, fill=nutrient), alpha=0.75) + facet_wrap( ~ loc) + theme_bw() +
+#   xlab("People potentially nourished per hectare for wheat") + ylab("Density") + 
+#   scale_fill_manual(values=wes_palette("Royal1",n=3)) +
+#   theme(
+#     legend.title = element_blank(),
+#     legend.position = c(0.85,0.55),
+#     panel.grid = element_blank(),
+#     panel.background = element_rect(fill="white"),
+#     plot.background = element_rect(fill="white")
+#   )
+
+
+## Make predictions based on SOM gains
 pro.list <- list(
   N=nrow(yield.data),
   K=6,
@@ -275,6 +304,38 @@ ggplot(nour_data, aes(x=ppl_nour_ha)) +
   geom_density(aes(group=nutrient, fill=nutrient), alpha=0.75) + theme_bw() +
   xlab("Additional people potentially nourished per hectare") + ylab("Density") + 
   scale_x_continuous(breaks = scales::pretty_breaks(n=10),limits = c(-0.5,1.5)) + 
+  scale_fill_manual(values=wes_palette("Royal1",n=2)) +
+  theme(
+    legend.title = element_blank(),
+    legend.position = c(0.85,0.55),
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill="white"),
+    plot.background = element_rect(fill="white")
+  )
+
+
+pro_hg <- stan(file = "Stan/final_models/nutrients.stan",
+            data = pro.list, 
+            control = list(adapt_delta=0.99,max_treedepth=15), chains = 4) %>% 
+  extract(pars='pro_nour_hg') %>% 
+  unlist(use.names=FALSE)
+zn_hg <- stan(file = "Stan/final_models/nutrients.stan", 
+           data = zn.list, 
+           control = list(adapt_delta=0.99,max_treedepth=15), chains = 4) %>%
+  extract(pars='zn_nour_hg') %>% 
+  unlist(use.names=FALSE)
+
+nour_hg_data <- data.frame(
+  c(pro_hg,zn_hg),
+  c(rep("Protein",length(pro_hg)),
+    rep("Zinc",length(zn_hg)))
+)
+names(nour_hg_data) <- c("ppl_nour_ha","nutrient")
+
+ggplot(nour_hg_data, aes(x=ppl_nour_ha)) + 
+  geom_density(aes(group=nutrient, fill=nutrient), alpha=0.75) + theme_bw() +
+  xlab("Additional people potentially nourished per hectare") + ylab("Density") + 
+  scale_x_continuous(breaks = scales::pretty_breaks(n=10),limits = c(-0.5,2.5)) + 
   scale_fill_manual(values=wes_palette("Royal1",n=2)) +
   theme(
     legend.title = element_blank(),

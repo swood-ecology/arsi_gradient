@@ -62,4 +62,11 @@ generated quantities {
   // No multiplication needed b/c micronutrients in same units as RDA
   vector[N] zn_nourished = ((yield * (norm_maom + norm_pom)) / 365) / zn_rda;
   vector[N] fe_nourished = ((yield * (norm_maom + norm_pom)) / 365) / fe_rda;
+
+  // Generating estimates for SOM differences between HG and WF
+  // Multiply by 10 not 1000 b/c protein is already in XX format, not 0.XX
+  vector[N] pro_nour_hg = ((yield * 1.65* 10 * (norm_maom + norm_pom)) / 365) / pro_rda;
+  // No multiplication needed b/c micronutrients in same units as RDA
+  vector[N] zn_nour_hg = ((yield * 1.65 * (norm_maom + norm_pom)) / 365) / zn_rda;
+  vector[N] fe_nour_hg = ((yield * 1.65 * (norm_maom + norm_pom)) / 365) / fe_rda;
 }

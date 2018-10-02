@@ -43,12 +43,29 @@ pairs(arsi[,c('WheatYield','Protein','Fe.crop','Zn.crop','N.appl.p.ha','POM.N','
 # PLOT TEXTURE DATA
 text.dat <- arsi[,c('Clay', 'Silt','Sand','SIR')]
 names(text.dat) <- c("CLAY","SILT","SAND","SIR")
+
+cat_list <- unique(as.data.frame(arsi[, "Location"]))
+col_list <- rainbow( n = nrow( cat_list ), 
+                     s = 0.8, v = 0.8 )
+names( col_list ) <- cat_list$Location
+pch_list <- 1:nrow( cat_list )
+names( pch_list ) <- cat_list$Location
+
 TT.plot(
   class.sys = "USDA.TT",
   tri.data = as.data.frame(text.dat),
-  z.name="SIR",
-  main = "Arsi Negele soil texture"
+  main = "Arsi Negele soil texture",
+  col = col_list[ as.character( arsi$Location ) ],
+  pch = pch_list[ as.character( arsi$Location ) ]
 )
+legend( 
+  x       = "topleft", 
+  title   = "Site:", 
+  legend  = cat_list$Location, 
+  pch     = pch_list, 
+  col     = col_list, 
+  pt.lwd  = 2, 
+  bty     = "n" )
 rm(text.dat)
 
 # QUESTION 1
